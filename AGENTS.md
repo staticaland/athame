@@ -82,3 +82,24 @@ func (m *MyModule) Deploy(
     // No need for: if environment == "" { environment = "production" }
 }
 ```
+
+## Claude Skills
+
+### Crane Image Finder
+
+Use the **crane** Claude skill (`.claude/skills/crane.md`) when working with container images. This skill helps you:
+
+- Find available container image tags using `crane ls`
+- Add proper Renovate regex patterns for automated dependency updates
+- Follow best practices for container image management
+
+**When to use**: Anytime you're adding or updating container images in Dockerfiles, YAML configurations, or any files that reference container images.
+
+**Key requirement**: Always include Renovate regex strings when working with container images to enable automated dependency updates.
+
+Example pattern:
+```dockerfile
+# renovate: datasource=docker depName=golang
+ARG GO_VERSION=1.21.0
+FROM golang:${GO_VERSION}
+```
