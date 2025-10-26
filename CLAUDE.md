@@ -39,12 +39,12 @@ Use Dagger annotations for parameter handling:
 // Deploy runs the deployment process
 // +optional
 func (m *MyModule) Deploy(
-    // +default="eu-west-1"
-    region string,
+    // +default="production"
+    environment string,
     // +optional
     dryRun bool,
 ) error {
     // Function body assumes defaults are already applied
-    // No need for: if region == "" { region = "eu-west-1" }
+    // No need for: if environment == "" { environment = "production" }
 }
 ```
