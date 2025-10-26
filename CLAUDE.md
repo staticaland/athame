@@ -29,7 +29,7 @@ dagger install [options] <module>
 
 ### Directory Structure
 
-- **`.dagger/`** - Root orchestration module for running and testing the project. Use this to call and test other modules.
+- **`.dagger/`** - Optional orchestration module. Use `dagger install` here to compose multiple modules, or create dedicated wrapper modules elsewhere as needed.
 - **Individual module directories** - Each module lives in its own directory at the repo root.
 
 ## Import Path
