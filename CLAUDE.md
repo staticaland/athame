@@ -26,7 +26,6 @@ Use Dagger annotations for parameter handling:
 - **Use annotations exclusively** - let Dagger handle defaults, not your function body
 - **Trust the framework** - write functions assuming defaults are already applied
 - **Document well** - add descriptive comments for optional parameters
-- **Stay consistent** - use the same defaults across similar functions (e.g., `region` defaults to `"eu-west-1"`)
 
 ### Forbidden Patterns
 
