@@ -1,11 +1,45 @@
 # Dagger Development Guidelines
 
+## Monorepo Structure
+
+This is a Dagger monorepo where we create and manage multiple Dagger modules, always using the Go SDK.
+
+### Creating New Modules
+
+To create a new module, use:
+
+```bash
+dagger init --sdk=go --name=<module-name>
+```
+
+Example:
+```bash
+dagger init --sdk=go --name=basics
+```
+
+Command format: `dagger init [options] [path]`
+
+### Using Modules
+
+To use a module in your project, use the `dagger install` command:
+
+```bash
+dagger install [options] <module>
+```
+
+### Directory Structure
+
+- **`.dagger/`** - Root orchestration module for running and testing the project. Use this to call and test other modules.
+- **Individual module directories** - Each module lives in its own directory at the repo root.
+
 ## Import Path
 
 Always import Dagger from:
 ```go
-import "dagger/athame/internal/dagger"
+import "dagger/<module-name>/internal/dagger"
 ```
+
+Replace `<module-name>` with your actual module name.
 
 ## Generated Files - Do Not Edit
 
