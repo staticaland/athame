@@ -31,8 +31,10 @@ dagger install [options] <module>
 
 Always import Dagger from:
 ```go
-import "dagger/athame/internal/dagger"
+import "dagger/<module-name>/internal/dagger"
 ```
+
+Replace `<module-name>` with your actual module name.
 
 ## Generated Files - Do Not Edit
 
