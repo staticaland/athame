@@ -27,6 +27,11 @@ To use a module in your project, use the `dagger install` command:
 dagger install [options] <module>
 ```
 
+### Directory Structure
+
+- **`.dagger/`** - Root orchestration module for running and testing the project. Use this to call and test other modules.
+- **Individual module directories** - Each module lives in its own directory at the repo root.
+
 ## Import Path
 
 Always import Dagger from:
