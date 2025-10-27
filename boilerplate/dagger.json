@@ -1,0 +1,13 @@
+{
+  "name": "boilerplate",
+  "engineVersion": "v0.19.2",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "asdf",
+      "source": "../asdf"
+    }
+  ]
+}
