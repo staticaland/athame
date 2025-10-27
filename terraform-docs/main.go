@@ -28,3 +28,40 @@ func (m *TerraformDocs) Base() *dagger.Container {
 		From(fmt.Sprintf("quay.io/terraform-docs/terraform-docs:%s", m.ImageTag)).
 		WithoutEntrypoint()
 }
+
+// Generate creates documentation from Terraform modules in various formats
+func (m *TerraformDocs) Generate(
+	// Terraform module directory to document
+	// +defaultPath="/"
+	source *dagger.Directory,
+	// Output format: markdown, json, yaml, asciidoc, toml, xml, pretty, tfvars
+	// +default="markdown"
+	format string,
+	// Output file path
+	// +optional
+	outputFile string,
+	// Output mode: inject or replace (only used when outputFile is set)
+	// +default="inject"
+	outputMode string,
+	// Update submodules recursively
+	// +optional
+	recursive bool,
+) *dagger.Directory {
+	container := m.Base().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src")
+
+	args := []string{"terraform-docs", format, "."}
+
+	if outputFile != "" {
+		args = append(args, "--output-file", outputFile, "--output-mode", outputMode)
+	}
+
+	if recursive {
+		args = append(args, "--recursive")
+	}
+
+	container = container.WithExec(args)
+
+	return container.Directory("/src")
+}
