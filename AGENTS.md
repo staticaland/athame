@@ -193,7 +193,7 @@ All modules should provide a `Base()` function that returns a configured base co
 
 - **Always use image digests** - never use tags alone (e.g., `node:lts-alpine`)
 - **Prefer specific version tags** - use fully qualified versions including base OS version when available (e.g., `20.11.1-alpine3.19` over `20.11.1-alpine`). This clarifies why digests change.
-- **Use crane for digests** - run `crane ls` and `crane digest` in an agent to get the latest digest
+- **Use crane for digests** - run `crane ls` and `crane digest` with the `Task` tool to get the latest image and digest
 - **Add renovate comments** - enable automated dependency updates
 
 ### Example
