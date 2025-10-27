@@ -113,8 +113,8 @@ All modules should provide a `Base()` function that returns a configured base co
 ```go
 // Base returns the base container with runtime and dependencies installed
 func (m *MyModule) Base() *dagger.Container {
-    // renovate: datasource=docker depName=node
     ctr := dag.Container().
+        // renovate: datasource=docker depName=node
         From("node:lts-alpine@sha256:...").
         WithoutEntrypoint().
         WithMountedDirectory("/src", m.Src).
