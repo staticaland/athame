@@ -52,13 +52,11 @@ To export files or directories from Dagger functions to your local filesystem, u
 dagger call <function-name> export --path=<local-path>
 ```
 
-Example with terraform-docs module:
+Example with the `terraform-docs` function in the repo module:
 
 ```bash
-dagger call -m terraform-docs base export --path=.
+dagger call terraform-docs export --path=fixtures/terraform
 ```
-
-This exports the directory returned by `base` to the current directory (`.`).
 
 ### Directory Structure
 
@@ -192,7 +190,7 @@ All modules should provide a `Base()` function that returns a configured base co
 ### Requirements
 
 - **Always use image digests** - never use tags alone (e.g., `node:lts-alpine`)
-- **Prefer specific version tags** - use fully qualified versions including base OS version when available (e.g., `20.11.1-alpine3.19` over `20.11.1-alpine`). This clarifies why digests change.
+- **Prefer specific version tags** - use fully qualified versions including base OS version when available (e.g., `20.11.1-alpine3.19` over `20.11.1-alpine`).
 - **Use crane for digests** - run `crane ls` and `crane digest` with the `Task` tool to get the latest image and digest
 - **Add renovate comments** - enable automated dependency updates
 
