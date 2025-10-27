@@ -1,0 +1,22 @@
+{
+  "name": "repo",
+  "engineVersion": "v0.19.2",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "boilerplate",
+      "source": "boilerplate"
+    },
+    {
+      "name": "terraform",
+      "source": "terraform"
+    },
+    {
+      "name": "terraform-docs",
+      "source": "terraform-docs"
+    }
+  ],
+  "source": ".dagger"
+}
