@@ -180,3 +180,8 @@ func (m *MyModule) Deploy(
     // No need for: if environment == "" { environment = "production" }
 }
 ```
+
+## Useful Links
+
+- [Dagger Go SDK API Reference](https://pkg.go.dev/dagger.io/dagger)
+- [Dagger Documentation](https://docs.dagger.io/llms.txt)
