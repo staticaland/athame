@@ -44,6 +44,20 @@ dagger functions -m ./terraform-docs
 
 This shows all available functions, their parameters, and return types. Always check what functions exist before implementing - don't assume method names or signatures.
 
+### Exploring Container Commands
+
+To explore commands available in a container (e.g., checking CLI help text), use `with-exec` with `--args`:
+
+```bash
+# Explore command help
+dagger call -m ./terraform-docs base with-exec --args="terraform-docs,--help" stdout
+
+# Check command options
+dagger call -m ./terraform-docs base with-exec --args="terraform-docs,markdown,--help" stdout
+```
+
+**Never use `terminal`** - it requires interactive TTY which is not supported in non-interactive contexts. Always use `with-exec` with comma-separated `--args` instead.
+
 ### Exporting Results
 
 To export files or directories from Dagger functions to your local filesystem, use the `export` command:
