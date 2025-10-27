@@ -62,8 +62,22 @@ This exports the directory returned by `base` to the current directory (`.`).
 
 ### Directory Structure
 
-- **`.dagger/`** - Optional orchestration module. Use `dagger install` here to compose multiple modules, or create dedicated wrapper modules elsewhere. Project CI may also live here.
+- **`.dagger/`** - The repo orchestration module. This is the module that can be called from the repository root using `dagger call <function-name>`. Use `dagger install` here to compose multiple modules, or create dedicated wrapper modules elsewhere. Project CI may also live here.
 - **Individual module directories** - Each module lives in its own directory at the repo root.
+
+### Repo Module
+
+The repo module is located in `.dagger/` and can be called directly from the repository root without the `-m` flag:
+
+```bash
+# List repo module functions
+dagger functions
+
+# Call a repo module function
+dagger call terraform-docs export --path ./fixtures/terraform
+```
+
+This module typically orchestrates other modules and provides high-level functions for the entire repository.
 
 ## Import Path
 
