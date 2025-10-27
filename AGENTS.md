@@ -92,6 +92,59 @@ func (m *MyModule) CreateUser(name string) (*User, error) {
 }
 ```
 
+## Base Function
+
+All modules should provide a `Base()` function that returns a configured base container.
+
+### Purpose
+
+- **Container foundation** - provides a reusable base container with runtime image and dependencies
+- **Shared setup** - other module functions build on top of this base
+- **Cache optimization** - centralizes cache volume configuration
+
+### Requirements
+
+- **Always use image digests** - never use tags alone (e.g., `node:lts-alpine`)
+- **Use crane for digests** - run `crane ls` and `crane digest` to get the latest digest
+- **Add renovate comments** - enable automated dependency updates
+
+### Example
+
+```go
+// Base returns the base container with runtime and dependencies installed
+func (m *MyModule) Base() *dagger.Container {
+    // renovate: datasource=docker depName=node
+    ctr := dag.Container().
+        From("node:lts-alpine@sha256:...").
+        WithoutEntrypoint().
+        WithMountedDirectory("/src", m.Src).
+        WithWorkdir("/src")
+
+    if !m.DisableCache {
+        ctr = ctr.
+            WithMountedCache(
+                "/root/.npm/_cacache",
+                dag.CacheVolume("npm-cache"),
+                dagger.ContainerWithMountedCacheOpts{
+                    Sharing: dagger.CacheSharingModePrivate,
+                },
+            )
+    }
+
+    return ctr
+}
+```
+
+### Finding Image Digests
+
+```bash
+# List available tags
+crane ls node
+
+# Get digest for specific tag
+crane digest node:lts-alpine
+```
+
 ## Function Parameters
 
 Use Dagger annotations for parameter handling:
