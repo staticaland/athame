@@ -105,6 +105,7 @@ All modules should provide a `Base()` function that returns a configured base co
 ### Requirements
 
 - **Always use image digests** - never use tags alone (e.g., `node:lts-alpine`)
+- **Prefer specific version tags** - use fully qualified versions (e.g., `20.11.1-alpine`) over generic tags (e.g., `lts-alpine`)
 - **Use crane for digests** - run `crane ls` and `crane digest` to get the latest digest
 - **Add renovate comments** - enable automated dependency updates
 
@@ -115,7 +116,7 @@ All modules should provide a `Base()` function that returns a configured base co
 func (m *MyModule) Base() *dagger.Container {
     ctr := dag.Container().
         // renovate: datasource=docker depName=node
-        From("node:lts-alpine@sha256:...").
+        From("node:20.11.1-alpine@sha256:...").
         WithoutEntrypoint().
         WithMountedDirectory("/src", m.Src).
         WithWorkdir("/src")
@@ -141,8 +142,8 @@ func (m *MyModule) Base() *dagger.Container {
 # List available tags
 crane ls node
 
-# Get digest for specific tag
-crane digest node:lts-alpine
+# Get digest for specific version tag (preferred)
+crane digest node:20.11.1-alpine
 ```
 
 ## Function Parameters
