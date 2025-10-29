@@ -91,6 +91,27 @@ dagger call terraform-docs export --path ./fixtures/terraform
 
 This module typically orchestrates other modules and provides high-level functions for the entire repository.
 
+## Calling Dagger Modules
+
+When calling Dagger modules, always follow these rules:
+
+- **Always use `--mod` flag** - explicitly specify the module path with `--mod` instead of relying on directory context
+- **Never use `cd`** - avoid changing directories to call a module; use `--mod` with the full path instead
+- **Exception: Repo module** - the repo module (`.dagger/`) can be called from the repository root without `--mod`
+
+### Examples
+
+```bash
+# Good: explicit module path for individual modules
+dagger call --mod ./terraform-docs generate
+
+# Good: repo module from repository root
+dagger call terraform-docs
+
+# Bad: changing directory
+cd terraform-docs && dagger call generate
+```
+
 ## Import Path
 
 Always import Dagger from:
@@ -224,16 +245,17 @@ func (m *MyModule) Base() *dagger.Container {
 
 ### Finding Image Digests
 
-Use the `Task` tool when running `crane` to find the latest version and image digest:
+Use the `container-image-lookup` subagent to find the latest version and image digest.
 
-```bash
-# Find the latest stable version using version sort
-# Use tail -n 50 to see recent versions and pick the latest stable
-crane ls hashicorp/terraform | sort --version-sort | tail -n 50
+**IMPORTANT: When it's obvious a module needs a container image digest/tag, launch the container-image-lookup subagent as the FIRST task.** This allows the lookup to happen in the background while you work on other parts of the module.
 
-# Get digest for the selected tag
-crane digest hashicorp/terraform:1.13.4
-```
+**Workflow:**
+
+1. Launch the subagent using the Task tool to find the image tag and digest for the container image
+2. Continue editing the module code without the tag and digest (use a placeholder or leave it empty)
+3. When the subagent returns with the result (in `version@sha256:digest` format), add it to the constructor
+
+This allows you to work on other parts of the module while the image lookup happens concurrently.
 
 ## Function Parameters
 
