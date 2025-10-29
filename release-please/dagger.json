@@ -1,0 +1,13 @@
+{
+  "name": "release-please",
+  "engineVersion": "v0.19.2",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "node",
+      "source": "../node"
+    }
+  ]
+}
