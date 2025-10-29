@@ -30,3 +30,15 @@ func (m *MkdocsMaterial) Base() *dagger.Container {
 		From(fmt.Sprintf("squidfunk/mkdocs-material:%s", m.ImageTag)).
 		WithoutEntrypoint()
 }
+
+// Build builds the MkDocs documentation and returns the site directory
+func (m *MkdocsMaterial) Build(
+	// +defaultPath="/"
+	source *dagger.Directory,
+) *dagger.Directory {
+	return m.Base().
+		WithMountedDirectory("/docs", source).
+		WithWorkdir("/docs").
+		WithExec([]string{"build"}).
+		Directory("/docs/site")
+}
