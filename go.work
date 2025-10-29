@@ -1,0 +1,19 @@
+go 1.25.1
+
+use (
+	./.dagger
+	./apprise
+	./asdf
+	./boilerplate
+	./github-cli
+	./httpie
+	./mermaid-cli
+	./mkdocs-material
+	./node
+	./ntfy
+	./oras
+	./release-please
+	./renovate
+	./terraform
+	./terraform-docs
+)
