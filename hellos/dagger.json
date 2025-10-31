@@ -1,0 +1,9 @@
+{
+  "name": "hellos",
+  "engineVersion": "v0.19.2",
+  "blueprint": {
+    "name": "hello-dagger",
+    "source": "github.com/kpenfound/blueprints/hello-dagger@main",
+    "pin": "2bb1d301e87cbe218b65c99f4e74618cda252638"
+  }
+}
