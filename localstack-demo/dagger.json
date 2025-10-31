@@ -1,0 +1,21 @@
+{
+  "name": "localstack-demo",
+  "engineVersion": "v0.19.2",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "aws-cli",
+      "source": "../aws-cli"
+    },
+    {
+      "name": "localstack",
+      "source": "../localstack"
+    },
+    {
+      "name": "terraform",
+      "source": "../terraform"
+    }
+  ]
+}
