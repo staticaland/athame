@@ -28,3 +28,11 @@ func (m *Terraform) Base() *dagger.Container {
 		From(fmt.Sprintf("hashicorp/terraform:%s", m.ImageTag)).
 		WithoutEntrypoint()
 }
+
+// TerraformLocal returns a container with both Terraform and terraform-local installed
+// This is useful for testing Terraform configurations against LocalStack
+func (m *Terraform) TerraformLocal() *dagger.Container {
+	return m.Base().
+		WithExec([]string{"apk", "add", "--no-cache", "python3", "py3-pip"}).
+		WithExec([]string{"pip3", "install", "--break-system-packages", "terraform-local"})
+}
