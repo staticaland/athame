@@ -29,3 +29,6 @@ go.work.sum
 
 .DS_Store
 /.claude/settings.local.json
+
+# beads cache
+.beads/
