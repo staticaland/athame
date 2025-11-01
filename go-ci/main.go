@@ -122,7 +122,7 @@ func (m *GoCi) Build(
 	return addr, nil
 }
 
-// LintAndBuild runs linting first, then builds and publishes if linting passes
+// LintAndBuild runs all tests (linting and security scanning) concurrently, then builds and publishes if tests pass
 func (m *GoCi) LintAndBuild(
 	ctx context.Context,
 	// source code location
@@ -135,12 +135,12 @@ func (m *GoCi) LintAndBuild(
 	// +default="myapp"
 	imageName string,
 ) (string, error) {
-	// Run linting first
-	_, err := m.Lint(ctx, source)
+	// Run all tests concurrently
+	err := m.RunAllTests(ctx, source)
 	if err != nil {
-		return "", fmt.Errorf("linting failed: %w", err)
+		return "", fmt.Errorf("tests failed: %w", err)
 	}
 
-	// If linting passes, build and publish
+	// If tests pass, build and publish
 	return m.Build(ctx, source, binaryName, imageName)
 }
