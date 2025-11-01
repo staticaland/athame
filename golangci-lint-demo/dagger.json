@@ -1,0 +1,13 @@
+{
+  "name": "golangci-lint-demo",
+  "engineVersion": "v0.19.2",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "golangci-lint",
+      "source": "../golangci-lint"
+    }
+  ]
+}
