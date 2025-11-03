@@ -61,7 +61,22 @@ func (m *MkdocsCi) Markdownlint(
 		Stdout(ctx)
 }
 
-// RunAllTests runs vale, prettier, and markdownlint concurrently
+// CheckLinks validates links in markdown files using lychee
+func (m *MkdocsCi) CheckLinks(
+	ctx context.Context,
+	// +defaultPath="/"
+	source *dagger.Directory,
+	// +default="fixtures/mkdocs-material"
+	sitePath string,
+) (string, error) {
+	return dag.Lychee().Base().
+		WithMountedDirectory("/src", source).
+		WithWorkdir(fmt.Sprintf("/src/%s", sitePath)).
+		WithExec([]string{"lychee", "--verbose", "docs"}).
+		Stdout(ctx)
+}
+
+// RunAllTests runs vale, prettier, markdownlint, and link checking concurrently
 func (m *MkdocsCi) RunAllTests(
 	ctx context.Context,
 	// +defaultPath="/"
@@ -87,6 +102,12 @@ func (m *MkdocsCi) RunAllTests(
 	// Run markdownlint
 	eg.Go(func() error {
 		_, err := m.Markdownlint(gctx, source, sitePath)
+		return err
+	})
+
+	// Run link checking
+	eg.Go(func() error {
+		_, err := m.CheckLinks(gctx, source, sitePath)
 		return err
 	})
 

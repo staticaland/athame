@@ -6,6 +6,10 @@
   },
   "dependencies": [
     {
+      "name": "lychee",
+      "source": "../lychee"
+    },
+    {
       "name": "markdownlint-cli2",
       "source": "../markdownlint-cli2"
     },
