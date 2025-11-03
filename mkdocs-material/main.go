@@ -39,6 +39,6 @@ func (m *MkdocsMaterial) Build(
 	return m.Base().
 		WithMountedDirectory("/docs", source).
 		WithWorkdir("/docs").
-		WithExec([]string{"build"}).
+		WithExec([]string{"mkdocs", "build"}).
 		Directory("/docs/site")
 }
