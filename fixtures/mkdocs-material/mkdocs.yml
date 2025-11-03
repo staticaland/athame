@@ -1,0 +1,12 @@
+site_name: Hello World
+site_description: A simple MkDocs Material site
+site_author: Example Author
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+
+nav:
+  - Home: index.md
