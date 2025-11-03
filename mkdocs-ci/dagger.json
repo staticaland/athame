@@ -1,0 +1,29 @@
+{
+  "name": "mkdocs-ci",
+  "engineVersion": "v0.19.2",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "markdownlint-cli2",
+      "source": "../markdownlint-cli2"
+    },
+    {
+      "name": "mkdocs-material",
+      "source": "../mkdocs-material"
+    },
+    {
+      "name": "ntfy",
+      "source": "../ntfy"
+    },
+    {
+      "name": "prettier",
+      "source": "../prettier"
+    },
+    {
+      "name": "vale",
+      "source": "../vale"
+    }
+  ]
+}
