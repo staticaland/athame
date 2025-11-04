@@ -11,6 +11,7 @@ import (
 
 	"dagger/mkdocs-ci/internal/dagger"
 
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -149,8 +150,12 @@ func (m *MkdocsCi) Publish(
 		WithDirectory("/usr/share/nginx/html", builtSite).
 		WithExposedPort(80)
 
-	// Publish to ttl.sh registry
-	addr, err := prodImage.Publish(ctx, fmt.Sprintf("ttl.sh/%s:1h", imageName))
+	// Generate a UUID for the ttl.sh image tag
+	// ttl.sh requires format: ttl.sh/<uuid>:<time-limit>
+	imageUUID := uuid.New().String()
+
+	// Publish to ttl.sh registry with UUID and imageName prefix
+	addr, err := prodImage.Publish(ctx, fmt.Sprintf("ttl.sh/%s-%s:1h", imageName, imageUUID))
 	if err != nil {
 		return "", err
 	}
@@ -174,9 +179,9 @@ func (m *MkdocsCi) LintBuildPublish(
 		"athame",
 		"Starting MkDocs CI/CD pipeline - running tests...",
 		dagger.NtfySendOpts{
-			Title:    "🚀 Deployment Started",
+			Title:    "Deployment Started",
 			Priority: "default",
-			Tags:     "rocket,test",
+			Tags:     "rocket",
 		},
 	)
 	if err != nil {
@@ -193,9 +198,9 @@ func (m *MkdocsCi) LintBuildPublish(
 			"athame",
 			fmt.Sprintf("Tests failed: %v", err),
 			dagger.NtfySendOpts{
-				Title:    "❌ Tests Failed",
+				Title:    "Tests Failed",
 				Priority: "high",
-				Tags:     "x,warning",
+				Tags:     "warning",
 			},
 		)
 		if notifyErr != nil {
@@ -210,9 +215,9 @@ func (m *MkdocsCi) LintBuildPublish(
 		"athame",
 		"All tests passed! Building and deploying...",
 		dagger.NtfySendOpts{
-			Title:    "✅ Tests Passed",
+			Title:    "Tests Passed",
 			Priority: "default",
-			Tags:     "white_check_mark,package",
+			Tags:     "white_check_mark",
 		},
 	)
 	if err != nil {
@@ -228,9 +233,9 @@ func (m *MkdocsCi) LintBuildPublish(
 			"athame",
 			fmt.Sprintf("Deployment failed: %v", err),
 			dagger.NtfySendOpts{
-				Title:    "❌ Deployment Failed",
+				Title:    "Deployment Failed",
 				Priority: "urgent",
-				Tags:     "x,warning",
+				Tags:     "warning",
 			},
 		)
 		if notifyErr != nil {
@@ -245,9 +250,9 @@ func (m *MkdocsCi) LintBuildPublish(
 		"athame",
 		fmt.Sprintf("Deployment complete!\n\n**Image:**\n```\n%s\n```\n\n**Run locally:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
 		dagger.NtfySendOpts{
-			Title:    "🎉 Deployment Complete",
+			Title:    "Deployment Complete",
 			Priority: "default",
-			Tags:     "tada,white_check_mark",
+			Tags:     "white_check_mark",
 			Markdown: true,
 		},
 	)

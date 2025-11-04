@@ -1,0 +1,13 @@
+{
+  "name": "ok",
+  "engineVersion": "v0.19.2",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "mise",
+      "source": "../mise"
+    }
+  ]
+}

@@ -33,13 +33,13 @@ dagger install [options] <module>
 Before using a module, explore its available functions to understand its API:
 
 ```bash
-dagger functions -m <module-path>
+dagger functions --mod <module-path>
 ```
 
 Example:
 
 ```bash
-dagger functions -m ./terraform-docs
+dagger functions --mod ./terraform-docs
 ```
 
 This shows all available functions, their parameters, and return types. Always check what functions exist before implementing - don't assume method names or signatures.
@@ -50,10 +50,10 @@ To explore commands available in a container (e.g., checking CLI help text), use
 
 ```bash
 # Explore command help
-dagger call -m ./terraform-docs base with-exec --args="terraform-docs,--help" stdout
+dagger call --mod ./terraform-docs base with-exec --args="terraform-docs,--help" stdout
 
 # Check command options
-dagger call -m ./terraform-docs base with-exec --args="terraform-docs,markdown,--help" stdout
+dagger call --mod ./terraform-docs base with-exec --args="terraform-docs,markdown,--help" stdout
 ```
 
 **Never use `terminal`** - it requires interactive TTY which is not supported in non-interactive contexts. Always use `with-exec` with comma-separated `--args` instead.
@@ -79,7 +79,7 @@ dagger call terraform-docs export --path=fixtures/terraform
 
 ### Repo Module
 
-The repo module is located in `.dagger/` and can be called directly from the repository root without the `-m` flag:
+The repo module is located in `.dagger/` and can be called directly from the repository root without the `--mod` flag:
 
 ```bash
 # List repo module functions
@@ -102,14 +102,22 @@ When calling Dagger modules, always follow these rules:
 ### Examples
 
 ```bash
-# Good: explicit module path for individual modules
+# Good: explicit module path for all dagger commands
 dagger call --mod ./terraform-docs generate
+dagger functions --mod ./terraform-docs
+dagger install --mod ./terraform-docs github.com/example/module
 
 # Good: repo module from repository root
 dagger call terraform-docs
+dagger functions
 
 # Bad: changing directory
 cd terraform-docs && dagger call generate
+cd terraform-docs && dagger functions
+
+# Bad: omitting --mod for non-repo modules
+dagger call generate
+dagger functions
 ```
 
 ## Import Path
