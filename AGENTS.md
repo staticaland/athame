@@ -331,7 +331,12 @@ func (m *MyModule) Base() *dagger.Container {
 
 Use the `container-image-lookup` subagent to find the latest version and image digest.
 
-**IMPORTANT: When it's obvious a module needs a container image digest/tag, launch the container-image-lookup subagent as the FIRST task.** This allows the lookup to happen in the background while you work on other parts of the module.
+**When to Look for Image Tags:**
+
+- **Do look for tags** - when creating a NEW module for a tool/image that doesn't exist in this repository yet
+- **Don't look for tags** - when installing existing modules from this repository (e.g., `./alpine`, `./archlinux`, `./mise`) - these modules already have their image configuration built-in
+
+**IMPORTANT: When creating a new module that needs a container image digest/tag, launch the container-image-lookup subagent as the FIRST task.** This allows the lookup to happen in the background while you work on other parts of the module.
 
 **Workflow:**
 
