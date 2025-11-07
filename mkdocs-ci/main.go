@@ -346,6 +346,7 @@ func (m *MkdocsCi) LintBuildPublish(
 		}
 
 		// Send notification that Render deploy is complete
+		renderUrl := fmt.Sprintf("https://%s.onrender.com", imageName)
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
@@ -354,6 +355,7 @@ func (m *MkdocsCi) LintBuildPublish(
 				Title:    "Render Deploy Complete",
 				Priority: "default",
 				Tags:     "rocket",
+				Actions:  fmt.Sprintf("view, View Site, %s", renderUrl),
 			},
 		)
 		if err != nil {
@@ -388,6 +390,7 @@ func (m *MkdocsCi) LintBuildPublish(
 		}
 
 		// Send notification that Fly.io deploy is complete
+		flyioUrl := fmt.Sprintf("https://%s.fly.dev", flyioApp)
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
@@ -396,6 +399,7 @@ func (m *MkdocsCi) LintBuildPublish(
 				Title:    "Fly.io Deploy Complete",
 				Priority: "default",
 				Tags:     "rocket",
+				Actions:  fmt.Sprintf("view, View Site, %s", flyioUrl),
 			},
 		)
 		if err != nil {
