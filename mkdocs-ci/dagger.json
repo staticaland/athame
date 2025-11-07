@@ -6,6 +6,10 @@
   },
   "dependencies": [
     {
+      "name": "flyio",
+      "source": "../flyio"
+    },
+    {
       "name": "lychee",
       "source": "../lychee"
     },
@@ -24,6 +28,10 @@
     {
       "name": "prettier",
       "source": "../prettier"
+    },
+    {
+      "name": "render-deploy-hook",
+      "source": "../render-deploy-hook"
     },
     {
       "name": "vale",

@@ -1,17 +1,17 @@
 // A Dagger module for MkDocs CI/CD: linting, building, and publishing documentation sites
 //
 // This module provides functions to lint markdown with vale, prettier, and markdownlint-cli2,
-// build MkDocs Material sites, and publish the site as a container image to ttl.sh registry.
+// build MkDocs Material sites, and publish the site as a container image to GitHub Container Registry.
 
 package main
 
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"dagger/mkdocs-ci/internal/dagger"
 
-	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -130,7 +130,7 @@ func (m *MkdocsCi) Build(
 	})
 }
 
-// Publish builds the site and publishes it as a container image to ttl.sh
+// Publish builds the site and publishes it as a container image to GHCR
 func (m *MkdocsCi) Publish(
 	ctx context.Context,
 	// +defaultPath="/"
@@ -139,28 +139,78 @@ func (m *MkdocsCi) Publish(
 	sitePath string,
 	// +default="mkdocs-demo"
 	imageName string,
+	// +default="latest"
+	tag string,
+	// +default="staticaland"
+	ghcrUsername string,
+	// GitHub token for GHCR authentication (get with: gh auth token)
+	ghcrToken *dagger.Secret,
 ) (string, error) {
-	// Build the site
+	// Build the site once
 	builtSite := m.Build(source, sitePath)
 
-	// Create a container with nginx to serve the static site
-	prodImage := dag.Container().
-		// renovate: datasource=docker depName=nginx
-		From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
-		WithDirectory("/usr/share/nginx/html", builtSite).
-		WithExposedPort(80)
+	// Platforms to build for: linux/amd64 (required for Render) and linux/arm64 (for Apple Silicon)
+	platforms := []dagger.Platform{
+		"linux/amd64", // Required for Render and most cloud providers
+		"linux/arm64", // For Apple Silicon Macs and ARM servers
+	}
 
-	// Generate a UUID for the ttl.sh image tag
-	// ttl.sh requires format: ttl.sh/<uuid>:<time-limit>
-	imageUUID := uuid.New().String()
+	// Create platform-specific variants
+	platformVariants := make([]*dagger.Container, 0, len(platforms))
+	for _, platform := range platforms {
+		ctr := dag.Container(dagger.ContainerOpts{Platform: platform}).
+			// renovate: datasource=docker depName=nginx
+			From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
+			WithDirectory("/usr/share/nginx/html", builtSite).
+			WithExposedPort(80).
+			WithLabel("org.opencontainers.image.title", imageName).
+			WithLabel("org.opencontainers.image.version", tag).
+			WithLabel("org.opencontainers.image.created", time.Now().String()).
+			WithLabel("org.opencontainers.image.source", "https://github.com/staticaland/athame")
 
-	// Publish to ttl.sh registry with UUID and imageName prefix
-	addr, err := prodImage.Publish(ctx, fmt.Sprintf("ttl.sh/%s-%s:1h", imageName, imageUUID))
+		platformVariants = append(platformVariants, ctr)
+	}
+
+	// Publish to GHCR
+	imageAddr := fmt.Sprintf("ghcr.io/%s/athame/%s:%s", ghcrUsername, imageName, tag)
+	addr, err := dag.Container().
+		WithRegistryAuth("ghcr.io", ghcrUsername, ghcrToken).
+		Publish(ctx, imageAddr, dagger.ContainerPublishOpts{
+			PlatformVariants: platformVariants,
+		})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to publish to GHCR: %w", err)
 	}
 
 	return addr, nil
+}
+
+// DeployRender triggers a Render deploy hook after publishing
+func (m *MkdocsCi) DeployRender(
+	ctx context.Context,
+	// The Render deploy hook URL (secret)
+	deployHookURL *dagger.Secret,
+) (string, error) {
+	return dag.RenderDeployHook(deployHookURL).Deploy(ctx)
+}
+
+// DeployFlyio deploys the published image to Fly.io
+func (m *MkdocsCi) DeployFlyio(
+	ctx context.Context,
+	// The fly.io app name
+	app string,
+	// The container image reference to deploy
+	image string,
+	// The fly.io API token
+	token *dagger.Secret,
+	// Primary region for the app (see https://fly.io/docs/reference/regions/)
+	// +default="arn"
+	primaryRegion string,
+) (string, error) {
+	return dag.Flyio().Deploy(ctx, app, image, token, dagger.FlyioDeployOpts{
+		PrimaryRegion: primaryRegion,
+		InternalPort:  80, // nginx default port
+	})
 }
 
 // LintBuildPublish runs all tests concurrently, then builds and publishes if tests pass
@@ -172,6 +222,20 @@ func (m *MkdocsCi) LintBuildPublish(
 	sitePath string,
 	// +default="mkdocs-demo"
 	imageName string,
+	// +default="latest"
+	tag string,
+	// +default="staticaland"
+	ghcrUsername string,
+	// GitHub token for GHCR authentication (get with: gh auth token)
+	ghcrToken *dagger.Secret,
+	// +optional
+	deployHookURL *dagger.Secret,
+	// +optional
+	flyioApp string,
+	// +optional
+	flyioToken *dagger.Secret,
+	// +optional
+	flyioRegion string,
 ) (string, error) {
 	// Send notification that deployment is starting
 	_, err := dag.Ntfy().Send(
@@ -225,7 +289,7 @@ func (m *MkdocsCi) LintBuildPublish(
 	}
 
 	// If tests pass, build and publish
-	addr, err := m.Publish(ctx, source, sitePath, imageName)
+	addr, err := m.Publish(ctx, source, sitePath, imageName, tag, ghcrUsername, ghcrToken)
 	if err != nil {
 		// Send deployment failure notification
 		_, notifyErr := dag.Ntfy().Send(
@@ -258,6 +322,85 @@ func (m *MkdocsCi) LintBuildPublish(
 	)
 	if err != nil {
 		fmt.Printf("Failed to send deployment complete notification: %v\n", err)
+	}
+
+	// Trigger Render deploy hook if provided
+	if deployHookURL != nil {
+		_, err := m.DeployRender(ctx, deployHookURL)
+		if err != nil {
+			// Send Render deploy failure notification
+			_, notifyErr := dag.Ntfy().Send(
+				ctx,
+				"athame",
+				fmt.Sprintf("Render deploy failed: %v", err),
+				dagger.NtfySendOpts{
+					Title:    "Render Deploy Failed",
+					Priority: "high",
+					Tags:     "warning",
+				},
+			)
+			if notifyErr != nil {
+				fmt.Printf("Failed to send Render deploy failure notification: %v\n", notifyErr)
+			}
+			return addr, fmt.Errorf("render deploy failed: %w", err)
+		}
+
+		// Send notification that Render deploy is complete
+		_, err = dag.Ntfy().Send(
+			ctx,
+			"athame",
+			"Render deploy triggered successfully!",
+			dagger.NtfySendOpts{
+				Title:    "Render Deploy Complete",
+				Priority: "default",
+				Tags:     "rocket",
+			},
+		)
+		if err != nil {
+			fmt.Printf("Failed to send Render deploy complete notification: %v\n", err)
+		}
+	}
+
+	// Deploy to Fly.io if provided
+	if flyioApp != "" && flyioToken != nil {
+		region := flyioRegion
+		if region == "" {
+			region = "arn" // default region
+		}
+
+		_, err := m.DeployFlyio(ctx, flyioApp, addr, flyioToken, region)
+		if err != nil {
+			// Send Fly.io deploy failure notification
+			_, notifyErr := dag.Ntfy().Send(
+				ctx,
+				"athame",
+				fmt.Sprintf("Fly.io deploy failed: %v", err),
+				dagger.NtfySendOpts{
+					Title:    "Fly.io Deploy Failed",
+					Priority: "high",
+					Tags:     "warning",
+				},
+			)
+			if notifyErr != nil {
+				fmt.Printf("Failed to send Fly.io deploy failure notification: %v\n", notifyErr)
+			}
+			return addr, fmt.Errorf("fly.io deploy failed: %w", err)
+		}
+
+		// Send notification that Fly.io deploy is complete
+		_, err = dag.Ntfy().Send(
+			ctx,
+			"athame",
+			fmt.Sprintf("Fly.io deploy successful!\nApp: %s", flyioApp),
+			dagger.NtfySendOpts{
+				Title:    "Fly.io Deploy Complete",
+				Priority: "default",
+				Tags:     "rocket",
+			},
+		)
+		if err != nil {
+			fmt.Printf("Failed to send Fly.io deploy complete notification: %v\n", err)
+		}
 	}
 
 	return addr, nil

@@ -1,0 +1,7 @@
+{
+  "name": "render-deploy-hook",
+  "engineVersion": "v0.19.2",
+  "sdk": {
+    "source": "go"
+  }
+}
