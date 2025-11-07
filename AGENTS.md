@@ -91,10 +91,50 @@ dagger call terraform-docs export --path ./fixtures/terraform
 
 This module typically orchestrates other modules and provides high-level functions for the entire repository.
 
+## Working Directory
+
+**Always work from the repository root.** All Dagger commands should be run from the top-level directory of the repository.
+
+### Path Patterns
+
+Use these path patterns consistently:
+
+- **`.` (single dot)** - represents the current directory (the repo root when you're working from there)
+- **`./module-name`** - path to a specific module directory from the repo root
+- **`./.dagger`** - path to the repo orchestration module
+
+### When to Use Single Dot (`.`)
+
+Use `.` in these contexts:
+
+1. **When installing a module from the repo root into `.dagger/`:**
+
+   ```bash
+   dagger install --mod ./.dagger ./terraform-docs
+   ```
+
+   This installs the `terraform-docs` module into the repo module.
+
+2. **When a module depends on the current directory context:**
+
+   ```bash
+   dagger call --mod ./terraform-docs generate --source=.
+   ```
+
+   This passes the repo root as a directory parameter.
+
+3. **When working within a module that needs to reference its own directory** (rare, since we avoid `cd`).
+
+### Never Use
+
+- **`..` (parent directory)** - avoid relative parent paths; use explicit paths from repo root instead
+- **`cd` commands** - stay in the repo root and use `--mod` with explicit paths
+
 ## Calling Dagger Modules
 
 When calling Dagger modules, always follow these rules:
 
+- **Stay at repository root** - run all commands from the top-level directory
 - **Always use `--mod` flag** - explicitly specify the module path with `--mod` instead of relying on directory context
 - **Never use `cd`** - avoid changing directories to call a module; use `--mod` with the full path instead
 - **Exception: Repo module** - the repo module (`.dagger/`) can be called from the repository root without `--mod`
@@ -102,14 +142,21 @@ When calling Dagger modules, always follow these rules:
 ### Examples
 
 ```bash
-# Good: explicit module path for all dagger commands
+# Good: explicit module path from repo root
 dagger call --mod ./terraform-docs generate
 dagger functions --mod ./terraform-docs
-dagger install --mod ./terraform-docs github.com/example/module
+dagger install --mod ./.dagger ./terraform-docs
 
-# Good: repo module from repository root
+# Good: using single dot for directory parameters
+dagger call --mod ./terraform-docs generate --source=.
+dagger call --mod ./mkdocs-ci build --docs=./docs
+
+# Good: repo module from repository root (no --mod needed)
 dagger call terraform-docs
 dagger functions
+
+# Good: installing dependencies for a specific module
+dagger install --mod ./terraform-docs github.com/example/some-dependency
 
 # Bad: changing directory
 cd terraform-docs && dagger call generate
@@ -118,7 +165,36 @@ cd terraform-docs && dagger functions
 # Bad: omitting --mod for non-repo modules
 dagger call generate
 dagger functions
+
+# Bad: using parent directory references
+dagger install --mod ./.dagger ../terraform-docs  # Use ./terraform-docs instead
+
+# Bad: using cd to get context
+cd terraform-docs && dagger call generate --source=.  # Use --mod and --source=./terraform-docs
 ```
+
+### Real-World Workflow
+
+Here's a typical workflow from the repository root:
+
+```bash
+# 1. Create a new module (stay at repo root)
+dagger init --sdk=go --name=my-module my-module
+
+# 2. Explore what it provides (stay at repo root)
+dagger functions --mod ./my-module
+
+# 3. Install it into the repo module (stay at repo root)
+dagger install --mod ./.dagger ./my-module
+
+# 4. Call it with the repo root as source (stay at repo root)
+dagger call --mod ./my-module process --source=.
+
+# 5. Export results (stay at repo root)
+dagger call --mod ./my-module process --source=. export --path=./output
+```
+
+Notice: no `cd` commands, all paths explicit from repo root.
 
 ## Import Path
 
