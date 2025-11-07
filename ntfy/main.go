@@ -33,6 +33,9 @@ func (m *Ntfy) Send(
 	// +optional
 	// Enable Markdown formatting
 	markdown bool,
+	// +optional
+	// Action buttons (format: "view, Label, URL" or "http, Label, URL")
+	actions string,
 ) (string, error) {
 	url := fmt.Sprintf("%s/%s", server, topic)
 
@@ -55,6 +58,10 @@ func (m *Ntfy) Send(
 
 	if markdown {
 		req.Header.Set("Markdown", "yes")
+	}
+
+	if actions != "" {
+		req.Header.Set("Actions", actions)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
