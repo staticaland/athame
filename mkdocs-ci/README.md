@@ -11,7 +11,7 @@ This module provides functions to lint markdown with vale, prettier, and markdow
 - **Concurrent testing**: All linters run in parallel for fast feedback
 - **Build**: Build MkDocs Material sites
 - **Publish**: Publish sites as container images to GitHub Container Registry (GHCR)
-- **Deploy**: Deploy to Fly.io and/or trigger Render deploy hooks after successful publish
+- **Deploy**: Deploy to Fly.io, Render, and/or Google Cloud Run after successful publish
 - **Notifications**: Send ntfy notifications at key pipeline stages (start, tests done, deployment complete)
 
 ## Usage
@@ -89,6 +89,23 @@ dagger call --mod ./mkdocs-ci deploy-render \
 
 This triggers a Render deploy hook. The deploy hook URL should be stored as a secret (e.g., environment variable).
 
+### Deploy to Google Cloud Run
+
+```bash
+dagger call --mod ./mkdocs-ci deploy-gcloud \
+  --service=mkdocs-demo \
+  --image="ghcr.io/staticaland/athame/mkdocs-demo:latest@sha256:..." \
+  --project=apps-477608 \
+  --region=europe-west1 \
+  --service-account-key='cmd:op document get "Google Cloud - Service account key"'
+```
+
+This deploys a published container image to Google Cloud Run. The service account key can be provided via:
+
+- **1Password**: `cmd:op document get "Google Cloud - Service account key"`
+- **File**: `file://$HOME/.config/gcloud/service-account-key.json`
+- **Environment variable**: `env:GCLOUD_SERVICE_ACCOUNT_KEY`
+
 ### Full CI/CD pipeline
 
 Run all linters, build, and publish if tests pass:
@@ -106,7 +123,7 @@ dagger call --mod ./mkdocs-ci lint-build-publish \
   --deploy-hook-url=env:RENDER_DEPLOY_HOOK_URL
 ```
 
-Deploy to both Fly.io and Render:
+Deploy to Fly.io and Render:
 
 ```bash
 dagger call --mod ./mkdocs-ci lint-build-publish \
@@ -115,6 +132,21 @@ dagger call --mod ./mkdocs-ci lint-build-publish \
   --flyio-app=my-mkdocs-app \
   --flyio-token=env:FLY_API_TOKEN \
   --flyio-region=arn
+```
+
+Deploy to all three platforms (Fly.io, Render, and Google Cloud Run):
+
+```bash
+dagger call --mod ./mkdocs-ci lint-build-publish \
+  --ghcr-token=cmd:"gh auth token | tr -d '\n'" \
+  --deploy-hook-url='cmd:op read "op://Private/Render Deploy Hook/credential" | tr -d '\''\n'\''' \
+  --flyio-app=mkdocs-material \
+  --flyio-token='cmd:op read "op://Private/Fly.io API Token/credential" | tr -d '\''\n'\''' \
+  --flyio-region=arn \
+  --gcloud-service=mkdocs-demo \
+  --gcloud-project=apps-477608 \
+  --gcloud-region=europe-west1 \
+  --gcloud-service-account-key='cmd:op document get "Google Cloud - Service account key"'
 ```
 
 This will:
@@ -126,6 +158,7 @@ This will:
 5. Send a notification when publishing is complete with the image address
 6. Trigger Render deploy hook (if provided) and send notification on success/failure
 7. Deploy to Fly.io (if app name and token provided) and send notification on success/failure
+8. Deploy to Google Cloud Run (if service, project, and service account key provided) and send notification on success/failure
 
 ## Example Output
 

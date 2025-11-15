@@ -1,6 +1,6 @@
 {
   "name": "mkdocs-ci",
-  "engineVersion": "v0.19.2",
+  "engineVersion": "v0.19.6",
   "sdk": {
     "source": "go"
   },
@@ -8,6 +8,10 @@
     {
       "name": "flyio",
       "source": "../flyio"
+    },
+    {
+      "name": "gcloud",
+      "source": "../gcloud"
     },
     {
       "name": "lychee",
@@ -37,5 +41,6 @@
       "name": "vale",
       "source": "../vale"
     }
-  ]
+  ],
+  "disableDefaultFunctionCaching": true
 }

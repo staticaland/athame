@@ -213,6 +213,32 @@ func (m *MkdocsCi) DeployFlyio(
 	})
 }
 
+// DeployGcloud deploys the published image to Google Cloud Run
+func (m *MkdocsCi) DeployGcloud(
+	ctx context.Context,
+	// The Cloud Run service name
+	service string,
+	// The container image reference to deploy
+	image string,
+	// GCP project ID
+	project string,
+	// GCP region (see https://cloud.google.com/run/docs/locations)
+	// +default="us-central1"
+	region string,
+	// Service account key file (JSON) for authentication
+	// Example: file://$HOME/.config/gcloud/service-account-key.json
+	// Or 1Password: cmd:op document get "Google Cloud - Service account key"
+	serviceAccountKey *dagger.Secret,
+	// Allow unauthenticated access (makes the service publicly accessible)
+	// +default=true
+	allowUnauthenticated bool,
+) (string, error) {
+	return dag.Gcloud().Deploy(ctx, service, image, project, region, dagger.GcloudDeployOpts{
+		AllowUnauthenticated: allowUnauthenticated,
+		ServiceAccountKey:    serviceAccountKey,
+	})
+}
+
 // LintBuildPublish runs all tests concurrently, then builds and publishes if tests pass
 func (m *MkdocsCi) LintBuildPublish(
 	ctx context.Context,
@@ -236,6 +262,24 @@ func (m *MkdocsCi) LintBuildPublish(
 	flyioToken *dagger.Secret,
 	// +optional
 	flyioRegion string,
+	// +optional
+	gcloudService string,
+	// +optional
+	gcloudProject string,
+	// +optional
+	gcloudRegion string,
+	// +optional
+	gcloudServiceAccountKey *dagger.Secret,
+	// +optional
+	gcloudAllowUnauthenticated bool,
+	// +optional
+	// +default="ghcr"
+	// Artifact Registry repository name
+	artifactRegistryRepo string,
+	// +optional
+	// +default="europe-north2"
+	// Artifact Registry region (can be different from Cloud Run region)
+	artifactRegistryRegion string,
 ) (string, error) {
 	// Send notification that deployment is starting
 	_, err := dag.Ntfy().Send(
@@ -404,6 +448,59 @@ func (m *MkdocsCi) LintBuildPublish(
 		)
 		if err != nil {
 			fmt.Printf("Failed to send Fly.io deploy complete notification: %v\n", err)
+		}
+	}
+
+	// Deploy to Google Cloud Run if service account key is provided
+	if gcloudServiceAccountKey != nil && gcloudService != "" && gcloudProject != "" {
+		region := gcloudRegion
+		if region == "" {
+			region = "us-central1" // default region
+		}
+
+		// Transform GHCR image to Artifact Registry remote repo format
+		// From: ghcr.io/staticaland/athame/mkdocs-demo:latest@sha256:...
+		// To: {artifactRegistryRegion}-docker.pkg.dev/{project}/{repo}/staticaland/athame/mkdocs-demo:latest@sha256:...
+		// Extract the path after ghcr.io/
+		ghcrPath := addr[len("ghcr.io/"):]
+		artifactRegistryImage := fmt.Sprintf("%s-docker.pkg.dev/%s/%s/%s",
+			artifactRegistryRegion, gcloudProject, artifactRegistryRepo, ghcrPath)
+
+		_, err := m.DeployGcloud(ctx, gcloudService, artifactRegistryImage, gcloudProject, region, gcloudServiceAccountKey, gcloudAllowUnauthenticated)
+		if err != nil {
+			// Send Google Cloud deploy failure notification
+			_, notifyErr := dag.Ntfy().Send(
+				ctx,
+				"athame",
+				fmt.Sprintf("Google Cloud Run deploy failed: %v", err),
+				dagger.NtfySendOpts{
+					Title:    "GCloud Deploy Failed",
+					Priority: "high",
+					Tags:     "warning",
+				},
+			)
+			if notifyErr != nil {
+				fmt.Printf("Failed to send Google Cloud deploy failure notification: %v\n", notifyErr)
+			}
+			return addr, fmt.Errorf("google cloud run deploy failed: %w", err)
+		}
+
+		// Send notification that Google Cloud deploy is complete
+		gcloudUrl := fmt.Sprintf("https://%s-%s.run.app", gcloudService, region)
+		_, err = dag.Ntfy().Send(
+			ctx,
+			"athame",
+			fmt.Sprintf("Google Cloud Run deploy successful!\n\n**Service:** %s\n**Region:** %s\n**Image:** %s", gcloudService, region, artifactRegistryImage),
+			dagger.NtfySendOpts{
+				Title:    "GCloud Deploy Complete",
+				Priority: "default",
+				Tags:     "rocket",
+				Actions:  fmt.Sprintf("view, View Site, %s", gcloudUrl),
+				Markdown: true,
+			},
+		)
+		if err != nil {
+			fmt.Printf("Failed to send Google Cloud deploy complete notification: %v\n", err)
 		}
 	}
 

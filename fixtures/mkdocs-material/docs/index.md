@@ -2,7 +2,11 @@
 
 Welcome to this simple MkDocs Material site!
 
-We out here deploying.
+We out here deploying. Fly, Render, Google Cloud.
+
+Now with Google Cloud remote.
+
+Now in correct region.
 
 ## About
 

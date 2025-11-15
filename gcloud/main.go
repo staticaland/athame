@@ -48,6 +48,8 @@ func (m *Gcloud) Deploy(
 	service string,
 	// Container image (e.g., LOCATION-docker.pkg.dev/PROJECT_ID/REPO/IMAGE:TAG)
 	image string,
+	// GCP project ID
+	project string,
 	// GCP region
 	region string,
 	// +optional
@@ -70,6 +72,7 @@ func (m *Gcloud) Deploy(
 	args := []string{
 		"gcloud", "run", "deploy", service,
 		"--image=" + image,
+		"--project=" + project,
 		"--region=" + region,
 	}
 
