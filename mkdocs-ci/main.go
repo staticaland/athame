@@ -185,60 +185,6 @@ func (m *MkdocsCi) Publish(
 	return addr, nil
 }
 
-// DeployRender triggers a Render deploy hook after publishing
-func (m *MkdocsCi) DeployRender(
-	ctx context.Context,
-	// The Render deploy hook URL (secret)
-	deployHookURL *dagger.Secret,
-) (string, error) {
-	return dag.RenderDeployHook(deployHookURL).Deploy(ctx)
-}
-
-// DeployFlyio deploys the published image to Fly.io
-func (m *MkdocsCi) DeployFlyio(
-	ctx context.Context,
-	// The fly.io app name
-	app string,
-	// The container image reference to deploy
-	image string,
-	// The fly.io API token
-	token *dagger.Secret,
-	// Primary region for the app (see https://fly.io/docs/reference/regions/)
-	// +default="arn"
-	primaryRegion string,
-) (string, error) {
-	return dag.Flyio().Deploy(ctx, app, image, token, dagger.FlyioDeployOpts{
-		PrimaryRegion: primaryRegion,
-		InternalPort:  80, // nginx default port
-	})
-}
-
-// DeployGcloud deploys the published image to Google Cloud Run
-func (m *MkdocsCi) DeployGcloud(
-	ctx context.Context,
-	// The Cloud Run service name
-	service string,
-	// The container image reference to deploy
-	image string,
-	// GCP project ID
-	project string,
-	// GCP region (see https://cloud.google.com/run/docs/locations)
-	// +default="us-central1"
-	region string,
-	// Service account key file (JSON) for authentication
-	// Example: file://$HOME/.config/gcloud/service-account-key.json
-	// Or 1Password: cmd:op document get "Google Cloud - Service account key"
-	serviceAccountKey *dagger.Secret,
-	// Allow unauthenticated access (makes the service publicly accessible)
-	// +default=true
-	allowUnauthenticated bool,
-) (string, error) {
-	return dag.Gcloud().Deploy(ctx, service, image, project, region, dagger.GcloudDeployOpts{
-		AllowUnauthenticated: allowUnauthenticated,
-		ServiceAccountKey:    serviceAccountKey,
-	})
-}
-
 // LintBuildPublish runs all tests concurrently, then builds and publishes if tests pass
 func (m *MkdocsCi) LintBuildPublish(
 	ctx context.Context,
@@ -370,7 +316,7 @@ func (m *MkdocsCi) LintBuildPublish(
 
 	// Trigger Render deploy hook if provided
 	if deployHookURL != nil {
-		_, err := m.DeployRender(ctx, deployHookURL)
+		_, err := dag.RenderDeployHook(deployHookURL).Deploy(ctx)
 		if err != nil {
 			// Send Render deploy failure notification
 			_, notifyErr := dag.Ntfy().Send(
@@ -414,7 +360,10 @@ func (m *MkdocsCi) LintBuildPublish(
 			region = "arn" // default region
 		}
 
-		_, err := m.DeployFlyio(ctx, flyioApp, addr, flyioToken, region)
+		_, err := dag.Flyio().Deploy(ctx, flyioApp, addr, flyioToken, dagger.FlyioDeployOpts{
+			PrimaryRegion: region,
+			InternalPort:  80, // nginx default port
+		})
 		if err != nil {
 			// Send Fly.io deploy failure notification
 			_, notifyErr := dag.Ntfy().Send(
@@ -466,7 +415,10 @@ func (m *MkdocsCi) LintBuildPublish(
 		artifactRegistryImage := fmt.Sprintf("%s-docker.pkg.dev/%s/%s/%s",
 			artifactRegistryRegion, gcloudProject, artifactRegistryRepo, ghcrPath)
 
-		_, err := m.DeployGcloud(ctx, gcloudService, artifactRegistryImage, gcloudProject, region, gcloudServiceAccountKey, gcloudAllowUnauthenticated)
+		_, err := dag.Gcloud().Deploy(ctx, gcloudService, artifactRegistryImage, gcloudProject, region, dagger.GcloudDeployOpts{
+			AllowUnauthenticated: gcloudAllowUnauthenticated,
+			ServiceAccountKey:    gcloudServiceAccountKey,
+		})
 		if err != nil {
 			// Send Google Cloud deploy failure notification
 			_, notifyErr := dag.Ntfy().Send(
