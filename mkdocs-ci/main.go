@@ -444,8 +444,30 @@ func (m *MkdocsCi) LintBuildPublish(
 			return addr, fmt.Errorf("google cloud run deploy failed: %w", err)
 		}
 
+		// Get the actual service URL from Cloud Run API
+		gcloudUrl, err := dag.Gcloud().GetServiceUrl(ctx, gcloudService, gcloudProject, region, dagger.GcloudGetServiceUrlOpts{
+			ServiceAccountKey: gcloudServiceAccountKey,
+		})
+		if err != nil {
+			// Send failure notification for URL retrieval
+			_, notifyErr := dag.Ntfy().Send(
+				ctx,
+				"athame",
+				fmt.Sprintf("**Error getting service URL:**\n```\n%v\n```", err),
+				dagger.NtfySendOpts{
+					Title:    "Failed to Get Cloud Run URL",
+					Priority: "high",
+					Tags:     "warning",
+					Markdown: true,
+				},
+			)
+			if notifyErr != nil {
+				fmt.Printf("Failed to send URL retrieval failure notification: %v\n", notifyErr)
+			}
+			return addr, fmt.Errorf("failed to get service URL: %w", err)
+		}
+
 		// Send notification that Google Cloud deploy is complete
-		gcloudUrl := fmt.Sprintf("https://%s-%s.run.app", gcloudService, region)
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
