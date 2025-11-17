@@ -268,7 +268,7 @@ func (m *MkdocsCi) LintBuildPublish(
 	_, err = dag.Ntfy().Send(
 		ctx,
 		"athame",
-		"All tests passed successfully. Building and deploying...",
+		"Tests passed. Building site...",
 		dagger.NtfySendOpts{
 			Title:    "Tests Completed",
 			Priority: "default",
@@ -304,7 +304,7 @@ func (m *MkdocsCi) LintBuildPublish(
 	_, err = dag.Ntfy().Send(
 		ctx,
 		"athame",
-		fmt.Sprintf("Image published successfully.\n\n**Image:**\n```\n%s\n```\n\n**Run locally:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
+		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```\n\n**Run:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
 		dagger.NtfySendOpts{
 			Title:    "Image Publishing Completed",
 			Priority: "default",
@@ -343,7 +343,7 @@ func (m *MkdocsCi) LintBuildPublish(
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
-			"Render deploy completed successfully.",
+			"Deployed to Render.",
 			dagger.NtfySendOpts{
 				Title:    "Render Deploy Completed",
 				Priority: "default",
@@ -392,7 +392,7 @@ func (m *MkdocsCi) LintBuildPublish(
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
-			fmt.Sprintf("Fly.io deploy completed successfully.\n\n**App:** %s\n**Region:** %s", flyioApp, region),
+			fmt.Sprintf("Deployed to Fly.io.\n\n**App:** %s", flyioApp),
 			dagger.NtfySendOpts{
 				Title:    "Fly.io Deploy Completed",
 				Priority: "default",
@@ -449,7 +449,7 @@ func (m *MkdocsCi) LintBuildPublish(
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
-			fmt.Sprintf("Google Cloud Run deploy completed successfully.\n\n**Service:** %s\n**Region:** %s\n**Image:**\n```\n%s\n```", gcloudService, region, artifactRegistryImage),
+			fmt.Sprintf("Deployed to Cloud Run.\n\n**Service:** %s", gcloudService),
 			dagger.NtfySendOpts{
 				Title:    "Google Cloud Run Deploy Completed",
 				Priority: "default",
