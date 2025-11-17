@@ -1,0 +1,12 @@
+# Deploy mkdocs-material to multiple platforms
+deploy:
+    dagger call --mod ./mkdocs-ci lint-build-publish \
+      --ghcr-token='cmd:gh auth token | tr -d '\''\n'\''' \
+      --deploy-hook-url='cmd:op read "op://Private/Render Deploy Hook/credential" | tr -d '\''\n'\''' \
+      --flyio-app=mkdocs-material \
+      --flyio-token='cmd:op read "op://Private/Fly.io API Token/credential" | tr -d '\''\n'\''' \
+      --flyio-region=arn \
+      --gcloud-service=mkdocs-demo \
+      --gcloud-project=apps-477608 \
+      --gcloud-region=europe-west1 \
+      --gcloud-service-account-key='cmd:op document get "Google Cloud - Service account key"'

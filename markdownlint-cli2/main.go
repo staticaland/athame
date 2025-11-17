@@ -29,3 +29,17 @@ func (m *MarkdownlintCli2) Base() *dagger.Container {
 		From(fmt.Sprintf("davidanson/markdownlint-cli2:%s", m.ImageTag)).
 		WithoutEntrypoint()
 }
+
+// Check runs markdownlint-cli2 on the specified pattern
+func (m *MarkdownlintCli2) Check(
+	// +defaultPath="/"
+	source *dagger.Directory,
+	// Pattern to check (relative to source)
+	// +default="docs/**/*.md"
+	pattern string,
+) *dagger.Container {
+	return m.Base().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"markdownlint-cli2", pattern})
+}

@@ -27,3 +27,17 @@ func (m *Lychee) Base() *dagger.Container {
 		From(fmt.Sprintf("lycheeverse/lychee:%s", m.ImageTag)).
 		WithoutEntrypoint()
 }
+
+// Check runs lychee link checker on the specified directory
+func (m *Lychee) Check(
+	// +defaultPath="/"
+	source *dagger.Directory,
+	// Path to check (relative to source)
+	// +default="docs"
+	path string,
+) *dagger.Container {
+	return m.Base().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"lychee", "--verbose", path})
+}

@@ -29,3 +29,17 @@ func (m *Prettier) Base() *dagger.Container {
 		WithoutEntrypoint().
 		WithExec([]string{"npm", "install", "-g", "prettier"})
 }
+
+// Check runs prettier format checking on the specified pattern
+func (m *Prettier) Check(
+	// +defaultPath="/"
+	source *dagger.Directory,
+	// Pattern to check (relative to source)
+	// +default="docs/**/*.md"
+	pattern string,
+) *dagger.Container {
+	return m.Base().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"prettier", "--check", pattern})
+}

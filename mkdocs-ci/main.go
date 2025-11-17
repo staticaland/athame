@@ -25,11 +25,11 @@ func (m *MkdocsCi) Vale(
 	// +default="fixtures/mkdocs-material"
 	sitePath string,
 ) (string, error) {
-	return dag.Vale().Base().
-		WithMountedDirectory("/src", source).
-		WithWorkdir(fmt.Sprintf("/src/%s", sitePath)).
-		WithExec([]string{"vale", "docs"}).
-		Stdout(ctx)
+	siteDir := source.Directory(sitePath)
+	return dag.Vale().Check(dagger.ValeCheckOpts{
+		Source: siteDir,
+		Path:   "docs",
+	}).Stdout(ctx)
 }
 
 // Prettier checks markdown formatting
@@ -40,11 +40,11 @@ func (m *MkdocsCi) Prettier(
 	// +default="fixtures/mkdocs-material"
 	sitePath string,
 ) (string, error) {
-	return dag.Prettier().Base().
-		WithMountedDirectory("/src", source).
-		WithWorkdir(fmt.Sprintf("/src/%s", sitePath)).
-		WithExec([]string{"prettier", "--check", "docs/**/*.md"}).
-		Stdout(ctx)
+	siteDir := source.Directory(sitePath)
+	return dag.Prettier().Check(dagger.PrettierCheckOpts{
+		Source:  siteDir,
+		Pattern: "docs/**/*.md",
+	}).Stdout(ctx)
 }
 
 // Markdownlint runs markdownlint-cli2 on markdown files
@@ -55,11 +55,11 @@ func (m *MkdocsCi) Markdownlint(
 	// +default="fixtures/mkdocs-material"
 	sitePath string,
 ) (string, error) {
-	return dag.MarkdownlintCli2().Base().
-		WithMountedDirectory("/src", source).
-		WithWorkdir(fmt.Sprintf("/src/%s", sitePath)).
-		WithExec([]string{"markdownlint-cli2", "docs/**/*.md"}).
-		Stdout(ctx)
+	siteDir := source.Directory(sitePath)
+	return dag.MarkdownlintCli2().Check(dagger.MarkdownlintCli2CheckOpts{
+		Source:  siteDir,
+		Pattern: "docs/**/*.md",
+	}).Stdout(ctx)
 }
 
 // CheckLinks validates links in markdown files using lychee
@@ -70,11 +70,11 @@ func (m *MkdocsCi) CheckLinks(
 	// +default="fixtures/mkdocs-material"
 	sitePath string,
 ) (string, error) {
-	return dag.Lychee().Base().
-		WithMountedDirectory("/src", source).
-		WithWorkdir(fmt.Sprintf("/src/%s", sitePath)).
-		WithExec([]string{"lychee", "--verbose", "docs"}).
-		Stdout(ctx)
+	siteDir := source.Directory(sitePath)
+	return dag.Lychee().Check(dagger.LycheeCheckOpts{
+		Source: siteDir,
+		Path:   "docs",
+	}).Stdout(ctx)
 }
 
 // RunAllTests runs vale, prettier, markdownlint, and link checking concurrently

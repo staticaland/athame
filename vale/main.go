@@ -28,3 +28,17 @@ func (m *Vale) Base() *dagger.Container {
 		From(fmt.Sprintf("jdkato/vale:%s", m.ImageTag)).
 		WithoutEntrypoint()
 }
+
+// Check runs vale linter on the specified directory
+func (m *Vale) Check(
+	// +defaultPath="/"
+	source *dagger.Directory,
+	// Path to check (relative to source)
+	// +default="docs"
+	path string,
+) *dagger.Container {
+	return m.Base().
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"vale", path})
+}
