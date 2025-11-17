@@ -343,7 +343,7 @@ func (m *MkdocsCi) LintBuildPublish(
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
-			fmt.Sprintf("Render deploy completed successfully.\n\n**URL:**\n%s", renderUrl),
+			"Render deploy completed successfully.",
 			dagger.NtfySendOpts{
 				Title:    "Render Deploy Completed",
 				Priority: "default",
@@ -392,7 +392,7 @@ func (m *MkdocsCi) LintBuildPublish(
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
-			fmt.Sprintf("Fly.io deploy completed successfully.\n\n**App:** %s\n**Region:** %s\n**URL:**\n%s", flyioApp, region, flyioUrl),
+			fmt.Sprintf("Fly.io deploy completed successfully.\n\n**App:** %s\n**Region:** %s", flyioApp, region),
 			dagger.NtfySendOpts{
 				Title:    "Fly.io Deploy Completed",
 				Priority: "default",
@@ -449,7 +449,7 @@ func (m *MkdocsCi) LintBuildPublish(
 		_, err = dag.Ntfy().Send(
 			ctx,
 			"athame",
-			fmt.Sprintf("Google Cloud Run deploy completed successfully.\n\n**Service:** %s\n**Region:** %s\n**Image:**\n```\n%s\n```\n**URL:**\n%s", gcloudService, region, artifactRegistryImage, gcloudUrl),
+			fmt.Sprintf("Google Cloud Run deploy completed successfully.\n\n**Service:** %s\n**Region:** %s\n**Image:**\n```\n%s\n```", gcloudService, region, artifactRegistryImage),
 			dagger.NtfySendOpts{
 				Title:    "Google Cloud Run Deploy Completed",
 				Priority: "default",
