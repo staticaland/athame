@@ -346,7 +346,6 @@ func (m *MkdocsCi) LintBuildPublish(
 				Priority: "default",
 				Tags:     "white_check_mark",
 				Actions:  fmt.Sprintf("view, View Site, %s", renderUrl),
-				Markdown: true,
 			},
 		)
 		if err != nil {
