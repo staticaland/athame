@@ -17,6 +17,14 @@ import (
 
 type MkdocsCi struct{}
 
+// notify sends a notification via ntfy and logs any errors without failing
+func (m *MkdocsCi) notify(ctx context.Context, message string, opts dagger.NtfySendOpts) {
+	_, err := dag.Ntfy().Send(ctx, "athame", message, opts)
+	if err != nil {
+		fmt.Printf("Failed to send notification '%s': %v\n", opts.Title, err)
+	}
+}
+
 // Vale runs vale linter on markdown files
 func (m *MkdocsCi) Vale(
 	ctx context.Context,
@@ -228,129 +236,74 @@ func (m *MkdocsCi) LintBuildPublish(
 	artifactRegistryRegion string,
 ) (string, error) {
 	// Send notification that deployment is starting
-	_, err := dag.Ntfy().Send(
-		ctx,
-		"athame",
-		"Starting tests...",
-		dagger.NtfySendOpts{
-			Title:    "MkDocs CI/CD Started",
-			Priority: "default",
-			Tags:     "hourglass_flowing_sand",
-		},
-	)
-	if err != nil {
-		// Log error but don't fail the pipeline
-		fmt.Printf("Failed to send start notification: %v\n", err)
-	}
+	m.notify(ctx, "Starting tests...", dagger.NtfySendOpts{
+		Title:    "MkDocs CI/CD Started",
+		Priority: "default",
+		Tags:     "hourglass_flowing_sand",
+	})
 
 	// Run all tests concurrently
-	err = m.RunAllTests(ctx, source, sitePath)
+	err := m.RunAllTests(ctx, source, sitePath)
 	if err != nil {
 		// Send failure notification
-		_, notifyErr := dag.Ntfy().Send(
-			ctx,
-			"athame",
-			"Check logs for details.",
-			dagger.NtfySendOpts{
-				Title:    "Tests Failed",
-				Priority: "high",
-				Tags:     "warning",
-			},
-		)
-		if notifyErr != nil {
-			fmt.Printf("Failed to send test failure notification: %v\n", notifyErr)
-		}
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Tests Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
 		return "", fmt.Errorf("tests failed: %w", err)
 	}
 
 	// Send notification that tests passed
-	_, err = dag.Ntfy().Send(
-		ctx,
-		"athame",
-		"Tests passed. Building site...",
-		dagger.NtfySendOpts{
-			Title:    "Tests Completed",
-			Priority: "default",
-			Tags:     "white_check_mark",
-		},
-	)
-	if err != nil {
-		fmt.Printf("Failed to send tests passed notification: %v\n", err)
-	}
+	m.notify(ctx, "Tests passed. Building site...", dagger.NtfySendOpts{
+		Title:    "Tests Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
 
 	// If tests pass, build and publish
 	addr, err := m.Publish(ctx, source, sitePath, imageName, tag, ghcrUsername, ghcrToken)
 	if err != nil {
 		// Send deployment failure notification
-		_, notifyErr := dag.Ntfy().Send(
-			ctx,
-			"athame",
-			"Check logs for details.",
-			dagger.NtfySendOpts{
-				Title:    "Image Publishing Failed",
-				Priority: "high",
-				Tags:     "warning",
-			},
-		)
-		if notifyErr != nil {
-			fmt.Printf("Failed to send deployment failure notification: %v\n", notifyErr)
-		}
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Image Publishing Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
 		return "", err
 	}
 
 	// Send notification that deployment is complete
-	_, err = dag.Ntfy().Send(
-		ctx,
-		"athame",
+	m.notify(ctx,
 		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```\n\n**Run:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
 		dagger.NtfySendOpts{
 			Title:    "Image Publishing Completed",
 			Priority: "default",
 			Tags:     "white_check_mark",
 			Markdown: true,
-		},
-	)
-	if err != nil {
-		fmt.Printf("Failed to send deployment complete notification: %v\n", err)
-	}
+		})
 
 	// Trigger Render deploy hook if provided
 	if deployHookURL != nil {
 		_, err := dag.RenderDeployHook(deployHookURL).Deploy(ctx)
 		if err != nil {
 			// Send Render deploy failure notification
-			_, notifyErr := dag.Ntfy().Send(
-				ctx,
-				"athame",
-				"Check logs for details.",
-				dagger.NtfySendOpts{
-					Title:    "Render Deploy Failed",
-					Priority: "high",
-					Tags:     "warning",
-				},
-			)
-			if notifyErr != nil {
-				fmt.Printf("Failed to send Render deploy failure notification: %v\n", notifyErr)
-			}
+			m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+				Title:    "Render Deploy Failed",
+				Priority: "high",
+				Tags:     "warning",
+			})
 			return addr, fmt.Errorf("render deploy failed: %w", err)
 		}
 
 		// Send notification that Render deploy is complete
 		renderUrl := fmt.Sprintf("https://%s.onrender.com", imageName)
-		_, err = dag.Ntfy().Send(
-			ctx,
-			"athame",
-			"Deployed to Render.",
-			dagger.NtfySendOpts{
-				Title:    "Render Deploy Completed",
-				Priority: "default",
-				Tags:     "white_check_mark",
-				Actions:  fmt.Sprintf("view, View Site, %s", renderUrl),
-			},
-		)
-		if err != nil {
-			fmt.Printf("Failed to send Render deploy complete notification: %v\n", err)
-		}
+		m.notify(ctx, "Deployed to Render.", dagger.NtfySendOpts{
+			Title:    "Render Deploy Completed",
+			Priority: "default",
+			Tags:     "white_check_mark",
+			Actions:  fmt.Sprintf("view, View Site, %s", renderUrl),
+		})
 	}
 
 	// Deploy to Fly.io if provided
@@ -366,27 +319,17 @@ func (m *MkdocsCi) LintBuildPublish(
 		})
 		if err != nil {
 			// Send Fly.io deploy failure notification
-			_, notifyErr := dag.Ntfy().Send(
-				ctx,
-				"athame",
-				"Check logs for details.",
-				dagger.NtfySendOpts{
-					Title:    "Fly.io Deploy Failed",
-					Priority: "high",
-					Tags:     "warning",
-				},
-			)
-			if notifyErr != nil {
-				fmt.Printf("Failed to send Fly.io deploy failure notification: %v\n", notifyErr)
-			}
+			m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+				Title:    "Fly.io Deploy Failed",
+				Priority: "high",
+				Tags:     "warning",
+			})
 			return addr, fmt.Errorf("fly.io deploy failed: %w", err)
 		}
 
 		// Send notification that Fly.io deploy is complete
 		flyioUrl := fmt.Sprintf("https://%s.fly.dev", flyioApp)
-		_, err = dag.Ntfy().Send(
-			ctx,
-			"athame",
+		m.notify(ctx,
 			fmt.Sprintf("Deployed to Fly.io.\n\n**App:** %s", flyioApp),
 			dagger.NtfySendOpts{
 				Title:    "Fly.io Deploy Completed",
@@ -394,11 +337,7 @@ func (m *MkdocsCi) LintBuildPublish(
 				Tags:     "white_check_mark",
 				Actions:  fmt.Sprintf("view, View Site, %s", flyioUrl),
 				Markdown: true,
-			},
-		)
-		if err != nil {
-			fmt.Printf("Failed to send Fly.io deploy complete notification: %v\n", err)
-		}
+			})
 	}
 
 	// Deploy to Google Cloud Run if service account key is provided
@@ -422,27 +361,17 @@ func (m *MkdocsCi) LintBuildPublish(
 		})
 		if err != nil {
 			// Send Google Cloud deploy failure notification
-			_, notifyErr := dag.Ntfy().Send(
-				ctx,
-				"athame",
-				"Check logs for details.",
-				dagger.NtfySendOpts{
-					Title:    "Google Cloud Run Deploy Failed",
-					Priority: "high",
-					Tags:     "warning",
-				},
-			)
-			if notifyErr != nil {
-				fmt.Printf("Failed to send Google Cloud deploy failure notification: %v\n", notifyErr)
-			}
+			m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+				Title:    "Google Cloud Run Deploy Failed",
+				Priority: "high",
+				Tags:     "warning",
+			})
 			return addr, fmt.Errorf("google cloud run deploy failed: %w", err)
 		}
 
 		// Send notification that Google Cloud deploy is complete
 		gcloudUrl := fmt.Sprintf("https://%s-%s.run.app", gcloudService, region)
-		_, err = dag.Ntfy().Send(
-			ctx,
-			"athame",
+		m.notify(ctx,
 			fmt.Sprintf("Deployed to Cloud Run.\n\n**Service:** %s", gcloudService),
 			dagger.NtfySendOpts{
 				Title:    "Google Cloud Run Deploy Completed",
@@ -450,11 +379,7 @@ func (m *MkdocsCi) LintBuildPublish(
 				Tags:     "white_check_mark",
 				Actions:  fmt.Sprintf("view, View Site, %s", gcloudUrl),
 				Markdown: true,
-			},
-		)
-		if err != nil {
-			fmt.Printf("Failed to send Google Cloud deploy complete notification: %v\n", err)
-		}
+			})
 	}
 
 	return addr, nil
