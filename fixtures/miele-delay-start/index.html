@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Miele W1 – Delay Start Helper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 0.25rem;
+    }
+    h2 {
+      font-size: 1.1rem;
+      margin-top: 1.5rem;
+      margin-bottom: 0.3rem;
+    }
+    .subtitle {
+      font-size: 0.9rem;
+      color: #9ca3af;
+      margin-bottom: 1rem;
+    }
+    .card {
+      background: #020617;
+      border-radius: 16px;
+      padding: 14px 14px 10px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+      margin-bottom: 16px;
+      border: 1px solid #1f2937;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+      color: #e5e7eb;
+    }
+    .field {
+      margin-bottom: 10px;
+    }
+    input[type="time"],
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #4b5563;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    input:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 1px #1d4ed8;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+    .row .field {
+      flex: 1;
+    }
+    button {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: none;
+      background: #2563eb;
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 4px;
+      margin-bottom: 6px;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    button.secondary {
+      background: transparent;
+      border: 1px solid #4b5563;
+      color: #e5e7eb;
+      margin-top: 0;
+    }
+    button.secondary:hover {
+      background: #020617;
+    }
+    .results {
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+    .result-line {
+      margin-bottom: 4px;
+    }
+    .result-label {
+      color: #9ca3af;
+    }
+    .highlight {
+      font-weight: 600;
+      color: #fbbf24;
+    }
+    .error {
+      color: #fca5a5;
+      font-size: 0.9rem;
+    }
+    .info {
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #4b5563;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <h1>Miele W1 delay start helper</h1>
+  <div class="subtitle">Work out when to start so the wash finishes when you want.</div>
+
+  <div class="card">
+    <div class="pill">Inputs</div>
+    <div class="field">
+      <label for="currentTime">Current time</label>
+      <div class="row">
+        <div class="field">
+          <input id="currentTime" type="time" step="60" />
+        </div>
+        <button type="button" class="secondary" id="nowBtn">Use now</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="duration">Programme length (HH:MM, e.g. 03:39)</label>
+      <input id="duration" type="text" placeholder="03:39" />
+    </div>
+
+    <div class="field">
+      <label for="finishTime">Desired finish time (same or next day)</label>
+      <input id="finishTime" type="time" step="60" />
+      <div class="info">
+        If finish time is earlier than current time, it's treated as <strong>tomorrow</strong>.
+      </div>
+    </div>
+
+    <button type="button" id="calcBtn">Calculate delay</button>
+    <div id="error" class="error"></div>
+  </div>
+
+  <div class="card">
+    <div class="pill">Result</div>
+    <div id="results" class="results">
+      <div class="info">Fill in the fields and tap "Calculate delay".</div>
+    </div>
+  </div>
+
+    <div class="card">
+      <div class="pill">Miele W1 delay rules</div>
+      <div class="info">
+        Typical W1 behaviour (check your exact model manual):
+        <ul>
+          <li>Delay start available from <strong>30 minutes</strong> up to <strong>24 hours</strong>.</li>
+          <li>Below about <strong>10 hours</strong>: steps of <strong>30 minutes</strong> (0:30, 1:00, 1:30, …).</li>
+          <li>From <strong>10–24 hours</strong>: steps of <strong>1 hour</strong> (10:00, 11:00, …, 24:00).</li>
+        </ul>
+        The tool shows both the exact math and the closest W1-friendly delay.
+      </div>
+    </div>
+
+  <script>
+    function pad2(n) {
+      return n.toString().padStart(2, "0");
+    }
+
+    function parseTimeHM(str) {
+      // "HH:MM" -> minutes from midnight
+      if (!str || !str.includes(":")) return null;
+      const [hStr, mStr] = str.split(":");
+      const h = Number(hStr);
+      const m = Number(mStr);
+      if (
+        Number.isNaN(h) || Number.isNaN(m) ||
+        h < 0 || h > 23 ||
+        m < 0 || m > 59
+      ) return null;
+      return h * 60 + m;
+    }
+
+    function parseDuration(str) {
+      // "H:MM" or "HH:MM" -> minutes
+      if (!str || !str.includes(":")) return null;
+      const [hStr, mStr] = str.split(":");
+      const h = Number(hStr);
+      const m = Number(mStr);
+      if (
+        Number.isNaN(h) || Number.isNaN(m) ||
+        h < 0 || m < 0 || m > 59
+      ) return null;
+      return h * 60 + m;
+    }
+
+    function formatHM(minutes) {
+      minutes = ((minutes % (24 * 60)) + (24 * 60)) % (24 * 60); // wrap 0–1439
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      return pad2(h) + ":" + pad2(m);
+    }
+
+    function formatDuration(min) {
+      const h = Math.floor(min / 60);
+      const m = min % 60;
+      const parts = [];
+      if (h) parts.push(h + " h");
+      if (m) parts.push(m + " min");
+      if (!parts.length) return "0 min";
+      return parts.join(" ");
+    }
+
+    function quantizeForW1Delay(delayMinutes) {
+      const MIN_DELAY = 30;         // 30 min
+      const MAX_DELAY = 24 * 60;    // 24 h
+
+      if (delayMinutes < MIN_DELAY) delayMinutes = MIN_DELAY;
+      if (delayMinutes > MAX_DELAY) delayMinutes = MAX_DELAY;
+
+      const hours = delayMinutes / 60;
+
+      let step;
+      if (hours < 10) {
+        step = 30; // 30-min steps
+      } else {
+        step = 60; // 1-hour steps
+      }
+
+      const rounded = Math.round(delayMinutes / step) * step;
+      const snapped = Math.min(MAX_DELAY, Math.max(MIN_DELAY, rounded));
+
+      return snapped;
+    }
+
+    function calculate() {
+      const errorEl = document.getElementById("error");
+      const resEl = document.getElementById("results");
+      errorEl.textContent = "";
+      resEl.innerHTML = "";
+
+      const currentStr = document.getElementById("currentTime").value;
+      const durationStr = document.getElementById("duration").value.trim();
+      const finishStr = document.getElementById("finishTime").value;
+
+      const nowMin = parseTimeHM(currentStr);
+      const durMin = parseDuration(durationStr);
+      const finishMinRaw = parseTimeHM(finishStr);
+
+      if (nowMin === null || durMin === null || finishMinRaw === null) {
+        errorEl.textContent = "Check that all times are filled in as HH:MM.";
+        return;
+      }
+
+      // Treat finish earlier than current as "tomorrow"
+      let finishMin = finishMinRaw;
+      if (finishMin <= nowMin) {
+        finishMin += 24 * 60;
+      }
+
+      const startMin = finishMin - durMin;
+      const delayMin = startMin - nowMin;
+
+      if (delayMin < 0) {
+        errorEl.textContent =
+          "With that duration you'd have needed to start earlier. Try a later finish time.";
+        return;
+      }
+
+      if (delayMin > 24 * 60) {
+        errorEl.textContent =
+          "Delay would be more than 24 hours, which is beyond what W1 usually supports.";
+        return;
+      }
+
+      const delayW1 = quantizeForW1Delay(delayMin);
+      const startExact = nowMin + delayMin;
+      const startW1 = nowMin + delayW1;
+      const finishW1 = startW1 + durMin;
+
+      const exactDelayText = formatDuration(delayMin);
+      const w1DelayText = formatDuration(delayW1);
+
+      resEl.innerHTML = `
+        <div class="result-line">
+          <span class="result-label">Exact math:</span>
+          <span class="highlight">${exactDelayText}</span> delay
+          → start at <span class="highlight">${formatHM(startExact)}</span>
+          → finish at ~${formatHM(startExact + durMin)}.
+        </div>
+        <div class="result-line">
+          <span class="result-label">Closest W1 delay setting:</span>
+          <span class="highlight">${w1DelayText}</span>
+          → start at <span class="highlight">${formatHM(startW1)}</span>
+          → finish at ~${formatHM(finishW1)}.
+        </div>
+        <div class="info">
+          (W1 typically uses 30-min steps up to 10 h, then 1-h steps up to 24 h.)
+        </div>
+      `;
+    }
+
+    function setNow() {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const t = pad2(h) + ":" + pad2(m);
+      document.getElementById("currentTime").value = t;
+    }
+
+    document.getElementById("calcBtn").addEventListener("click", calculate);
+    document.getElementById("nowBtn").addEventListener("click", setNow);
+
+    // Prefill current time & a typical duration
+    window.addEventListener("load", () => {
+      setNow();
+      const durEl = document.getElementById("duration");
+      if (!durEl.value) durEl.value = "03:39"; // your example
+    });
+  </script>
+</body>
+</html>
