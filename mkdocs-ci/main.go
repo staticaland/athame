@@ -15,7 +15,34 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type MkdocsCi struct{}
+func New(
+	// +defaultPath="/"
+	source *dagger.Directory,
+	// +default="fixtures/mkdocs-material"
+	sitePath string,
+	// +default="mkdocs-demo"
+	imageName string,
+	// +default="latest"
+	tag string,
+	// +default="staticaland"
+	ghcrUsername string,
+) *MkdocsCi {
+	return &MkdocsCi{
+		Source:       source,
+		SitePath:     sitePath,
+		ImageName:    imageName,
+		Tag:          tag,
+		GhcrUsername: ghcrUsername,
+	}
+}
+
+type MkdocsCi struct {
+	Source       *dagger.Directory
+	SitePath     string
+	ImageName    string
+	Tag          string
+	GhcrUsername string
+}
 
 // notify sends a notification via ntfy and logs any errors without failing
 func (m *MkdocsCi) notify(ctx context.Context, message string, opts dagger.NtfySendOpts) {
@@ -28,12 +55,8 @@ func (m *MkdocsCi) notify(ctx context.Context, message string, opts dagger.NtfyS
 // Vale runs vale linter on markdown files
 func (m *MkdocsCi) Vale(
 	ctx context.Context,
-	// +defaultPath="/"
-	source *dagger.Directory,
-	// +default="fixtures/mkdocs-material"
-	sitePath string,
 ) (string, error) {
-	siteDir := source.Directory(sitePath)
+	siteDir := m.Source.Directory(m.SitePath)
 	return dag.Vale().Check(dagger.ValeCheckOpts{
 		Source: siteDir,
 		Path:   "docs",
@@ -43,12 +66,8 @@ func (m *MkdocsCi) Vale(
 // Prettier checks markdown formatting
 func (m *MkdocsCi) Prettier(
 	ctx context.Context,
-	// +defaultPath="/"
-	source *dagger.Directory,
-	// +default="fixtures/mkdocs-material"
-	sitePath string,
 ) (string, error) {
-	siteDir := source.Directory(sitePath)
+	siteDir := m.Source.Directory(m.SitePath)
 	return dag.Prettier().Check(dagger.PrettierCheckOpts{
 		Source:  siteDir,
 		Pattern: "docs/**/*.md",
@@ -58,12 +77,8 @@ func (m *MkdocsCi) Prettier(
 // Markdownlint runs markdownlint-cli2 on markdown files
 func (m *MkdocsCi) Markdownlint(
 	ctx context.Context,
-	// +defaultPath="/"
-	source *dagger.Directory,
-	// +default="fixtures/mkdocs-material"
-	sitePath string,
 ) (string, error) {
-	siteDir := source.Directory(sitePath)
+	siteDir := m.Source.Directory(m.SitePath)
 	return dag.MarkdownlintCli2().Check(dagger.MarkdownlintCli2CheckOpts{
 		Source:  siteDir,
 		Pattern: "docs/**/*.md",
@@ -73,12 +88,8 @@ func (m *MkdocsCi) Markdownlint(
 // CheckLinks validates links in markdown files using lychee
 func (m *MkdocsCi) CheckLinks(
 	ctx context.Context,
-	// +defaultPath="/"
-	source *dagger.Directory,
-	// +default="fixtures/mkdocs-material"
-	sitePath string,
 ) (string, error) {
-	siteDir := source.Directory(sitePath)
+	siteDir := m.Source.Directory(m.SitePath)
 	return dag.Lychee().Check(dagger.LycheeCheckOpts{
 		Source: siteDir,
 		Path:   "docs",
@@ -88,35 +99,31 @@ func (m *MkdocsCi) CheckLinks(
 // RunAllTests runs vale, prettier, markdownlint, and link checking concurrently
 func (m *MkdocsCi) RunAllTests(
 	ctx context.Context,
-	// +defaultPath="/"
-	source *dagger.Directory,
-	// +default="fixtures/mkdocs-material"
-	sitePath string,
 ) error {
 	// Create error group
 	eg, gctx := errgroup.WithContext(ctx)
 
 	// Run vale
 	eg.Go(func() error {
-		_, err := m.Vale(gctx, source, sitePath)
+		_, err := m.Vale(gctx)
 		return err
 	})
 
 	// Run prettier
 	eg.Go(func() error {
-		_, err := m.Prettier(gctx, source, sitePath)
+		_, err := m.Prettier(gctx)
 		return err
 	})
 
 	// Run markdownlint
 	eg.Go(func() error {
-		_, err := m.Markdownlint(gctx, source, sitePath)
+		_, err := m.Markdownlint(gctx)
 		return err
 	})
 
 	// Run link checking
 	eg.Go(func() error {
-		_, err := m.CheckLinks(gctx, source, sitePath)
+		_, err := m.CheckLinks(gctx)
 		return err
 	})
 
@@ -128,8 +135,6 @@ func (m *MkdocsCi) RunAllTests(
 // runTestsWithNotifications runs all tests with start and completion notifications
 func (m *MkdocsCi) runTestsWithNotifications(
 	ctx context.Context,
-	source *dagger.Directory,
-	sitePath string,
 ) error {
 	// Send notification that deployment is starting
 	m.notify(ctx, "Starting tests...", dagger.NtfySendOpts{
@@ -139,7 +144,7 @@ func (m *MkdocsCi) runTestsWithNotifications(
 	})
 
 	// Run all tests concurrently
-	err := m.RunAllTests(ctx, source, sitePath)
+	err := m.RunAllTests(ctx)
 	if err != nil {
 		// Send failure notification
 		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
@@ -163,15 +168,10 @@ func (m *MkdocsCi) runTestsWithNotifications(
 // publishWithNotifications builds and publishes the site with notifications
 func (m *MkdocsCi) publishWithNotifications(
 	ctx context.Context,
-	source *dagger.Directory,
-	sitePath string,
-	imageName string,
-	tag string,
-	ghcrUsername string,
 	ghcrToken *dagger.Secret,
 ) (string, error) {
 	// Build and publish
-	addr, err := m.Publish(ctx, source, sitePath, imageName, tag, ghcrUsername, ghcrToken)
+	addr, err := m.Publish(ctx, ghcrToken)
 	if err != nil {
 		// Send deployment failure notification
 		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
@@ -199,7 +199,6 @@ func (m *MkdocsCi) publishWithNotifications(
 func (m *MkdocsCi) deployToAllPlatforms(
 	ctx context.Context,
 	addr string,
-	imageName string,
 	deployHookURL *dagger.Secret,
 	flyioApp string,
 	flyioToken *dagger.Secret,
@@ -226,7 +225,7 @@ func (m *MkdocsCi) deployToAllPlatforms(
 		}
 
 		// Send notification that Render deploy is complete
-		renderUrl := fmt.Sprintf("https://%s.onrender.com", imageName)
+		renderUrl := fmt.Sprintf("https://%s.onrender.com", m.ImageName)
 		m.notify(ctx, "Deployed to Render.", dagger.NtfySendOpts{
 			Title:    "Render Deploy Completed",
 			Priority: "default",
@@ -315,13 +314,8 @@ func (m *MkdocsCi) deployToAllPlatforms(
 }
 
 // Build builds the MkDocs Material site
-func (m *MkdocsCi) Build(
-	// +defaultPath="/"
-	source *dagger.Directory,
-	// +default="fixtures/mkdocs-material"
-	sitePath string,
-) *dagger.Directory {
-	docsSource := source.Directory(sitePath)
+func (m *MkdocsCi) Build() *dagger.Directory {
+	docsSource := m.Source.Directory(m.SitePath)
 	return dag.MkdocsMaterial().Build(dagger.MkdocsMaterialBuildOpts{
 		Source: docsSource,
 	})
@@ -330,21 +324,11 @@ func (m *MkdocsCi) Build(
 // Publish builds the site and publishes it as a container image to GHCR
 func (m *MkdocsCi) Publish(
 	ctx context.Context,
-	// +defaultPath="/"
-	source *dagger.Directory,
-	// +default="fixtures/mkdocs-material"
-	sitePath string,
-	// +default="mkdocs-demo"
-	imageName string,
-	// +default="latest"
-	tag string,
-	// +default="staticaland"
-	ghcrUsername string,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
 	// Build the site once
-	builtSite := m.Build(source, sitePath)
+	builtSite := m.Build()
 
 	// Platforms to build for: linux/amd64 (required for Render) and linux/arm64 (for Apple Silicon)
 	platforms := []dagger.Platform{
@@ -360,8 +344,8 @@ func (m *MkdocsCi) Publish(
 			From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
 			WithDirectory("/usr/share/nginx/html", builtSite).
 			WithExposedPort(80).
-			WithLabel("org.opencontainers.image.title", imageName).
-			WithLabel("org.opencontainers.image.version", tag).
+			WithLabel("org.opencontainers.image.title", m.ImageName).
+			WithLabel("org.opencontainers.image.version", m.Tag).
 			WithLabel("org.opencontainers.image.created", time.Now().String()).
 			WithLabel("org.opencontainers.image.source", "https://github.com/staticaland/athame")
 
@@ -369,9 +353,9 @@ func (m *MkdocsCi) Publish(
 	}
 
 	// Publish to GHCR
-	imageAddr := fmt.Sprintf("ghcr.io/%s/athame/%s:%s", ghcrUsername, imageName, tag)
+	imageAddr := fmt.Sprintf("ghcr.io/%s/athame/%s:%s", m.GhcrUsername, m.ImageName, m.Tag)
 	addr, err := dag.Container().
-		WithRegistryAuth("ghcr.io", ghcrUsername, ghcrToken).
+		WithRegistryAuth("ghcr.io", m.GhcrUsername, ghcrToken).
 		Publish(ctx, imageAddr, dagger.ContainerPublishOpts{
 			PlatformVariants: platformVariants,
 		})
@@ -385,16 +369,6 @@ func (m *MkdocsCi) Publish(
 // LintBuildPublish runs all tests concurrently, then builds and publishes if tests pass
 func (m *MkdocsCi) LintBuildPublish(
 	ctx context.Context,
-	// +defaultPath="/"
-	source *dagger.Directory,
-	// +default="fixtures/mkdocs-material"
-	sitePath string,
-	// +default="mkdocs-demo"
-	imageName string,
-	// +default="latest"
-	tag string,
-	// +default="staticaland"
-	ghcrUsername string,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 	// +optional
@@ -425,12 +399,12 @@ func (m *MkdocsCi) LintBuildPublish(
 	artifactRegistryRegion string,
 ) (string, error) {
 	// Run tests with notifications
-	if err := m.runTestsWithNotifications(ctx, source, sitePath); err != nil {
+	if err := m.runTestsWithNotifications(ctx); err != nil {
 		return "", err
 	}
 
 	// Build and publish with notifications
-	addr, err := m.publishWithNotifications(ctx, source, sitePath, imageName, tag, ghcrUsername, ghcrToken)
+	addr, err := m.publishWithNotifications(ctx, ghcrToken)
 	if err != nil {
 		return "", err
 	}
@@ -439,7 +413,6 @@ func (m *MkdocsCi) LintBuildPublish(
 	if err := m.deployToAllPlatforms(
 		ctx,
 		addr,
-		imageName,
 		deployHookURL,
 		flyioApp,
 		flyioToken,
