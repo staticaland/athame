@@ -102,7 +102,7 @@ func (m *MkdocsCi) RunAllTests(
 	return eg.Wait()
 }
 
-// deployToAllPlatforms deploys to Render, Fly.io, and Google Cloud Run based on provided credentials
+// deployToAllPlatforms deploys to Render, Fly.io, and Google Cloud Run concurrently based on provided credentials
 func (m *MkdocsCi) deployToAllPlatforms(
 	ctx context.Context,
 	addr string,
@@ -118,106 +118,114 @@ func (m *MkdocsCi) deployToAllPlatforms(
 	artifactRegistryRepo string,
 	artifactRegistryRegion string,
 ) error {
-	// Trigger Render deploy hook if provided
-	if deployHookURL != nil {
-		_, err := dag.RenderDeployHook(deployHookURL).Deploy(ctx)
-		if err != nil {
-			// Send Render deploy failure notification
-			m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-				Title:    "Render Deploy Failed",
-				Priority: "high",
-				Tags:     "warning",
-			})
-			return fmt.Errorf("render deploy failed: %w", err)
-		}
+	// Create error group for concurrent deployments
+	eg, gctx := errgroup.WithContext(ctx)
 
-		// Send notification that Render deploy is complete
-		renderUrl := fmt.Sprintf("https://%s.onrender.com", m.ImageName)
-		m.notify(ctx, "Deployed to Render.", dagger.NtfySendOpts{
-			Title:    "Render Deploy Completed",
-			Priority: "default",
-			Tags:     "white_check_mark",
-			Actions:  fmt.Sprintf("view, View Site, %s", renderUrl),
+	// Deploy to Render if provided
+	if deployHookURL != nil {
+		eg.Go(func() error {
+			_, err := dag.RenderDeployHook(deployHookURL).Deploy(gctx)
+			if err != nil {
+				m.notify(gctx, "Check logs for details.", dagger.NtfySendOpts{
+					Title:    "Render Deploy Failed",
+					Priority: "high",
+					Tags:     "warning",
+				})
+				return fmt.Errorf("render deploy failed: %w", err)
+			}
+
+			renderUrl := fmt.Sprintf("https://%s.onrender.com", m.ImageName)
+			m.notify(gctx, "Deployed to Render.", dagger.NtfySendOpts{
+				Title:    "Render Deploy Completed",
+				Priority: "default",
+				Tags:     "white_check_mark",
+				Actions:  fmt.Sprintf("view, View Site, %s", renderUrl),
+			})
+			return nil
 		})
 	}
 
 	// Deploy to Fly.io if provided
 	if flyioApp != "" && flyioToken != nil {
-		region := flyioRegion
-		if region == "" {
-			region = "arn" // default region
-		}
+		eg.Go(func() error {
+			region := flyioRegion
+			if region == "" {
+				region = "arn" // default region
+			}
 
-		_, err := dag.Flyio().Deploy(ctx, flyioApp, addr, flyioToken, dagger.FlyioDeployOpts{
-			PrimaryRegion: region,
-			InternalPort:  80, // nginx default port
+			_, err := dag.Flyio().Deploy(gctx, flyioApp, addr, flyioToken, dagger.FlyioDeployOpts{
+				PrimaryRegion: region,
+				InternalPort:  80, // nginx default port
+			})
+			if err != nil {
+				m.notify(gctx, "Check logs for details.", dagger.NtfySendOpts{
+					Title:    "Fly.io Deploy Failed",
+					Priority: "high",
+					Tags:     "warning",
+				})
+				return fmt.Errorf("fly.io deploy failed: %w", err)
+			}
+
+			flyioUrl := fmt.Sprintf("https://%s.fly.dev", flyioApp)
+			m.notify(gctx,
+				fmt.Sprintf("Deployed to Fly.io.\n\n**App:** %s", flyioApp),
+				dagger.NtfySendOpts{
+					Title:    "Fly.io Deploy Completed",
+					Priority: "default",
+					Tags:     "white_check_mark",
+					Actions:  fmt.Sprintf("view, View Site, %s", flyioUrl),
+					Markdown: true,
+				})
+			return nil
 		})
-		if err != nil {
-			// Send Fly.io deploy failure notification
-			m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-				Title:    "Fly.io Deploy Failed",
-				Priority: "high",
-				Tags:     "warning",
-			})
-			return fmt.Errorf("fly.io deploy failed: %w", err)
-		}
-
-		// Send notification that Fly.io deploy is complete
-		flyioUrl := fmt.Sprintf("https://%s.fly.dev", flyioApp)
-		m.notify(ctx,
-			fmt.Sprintf("Deployed to Fly.io.\n\n**App:** %s", flyioApp),
-			dagger.NtfySendOpts{
-				Title:    "Fly.io Deploy Completed",
-				Priority: "default",
-				Tags:     "white_check_mark",
-				Actions:  fmt.Sprintf("view, View Site, %s", flyioUrl),
-				Markdown: true,
-			})
 	}
 
-	// Deploy to Google Cloud Run if service account key is provided
+	// Deploy to Google Cloud Run if provided
 	if gcloudServiceAccountKey != nil && gcloudService != "" && gcloudProject != "" {
-		region := gcloudRegion
-		if region == "" {
-			region = "us-central1" // default region
-		}
+		eg.Go(func() error {
+			region := gcloudRegion
+			if region == "" {
+				region = "us-central1" // default region
+			}
 
-		// Transform GHCR image to Artifact Registry remote repo format
-		// From: ghcr.io/staticaland/athame/mkdocs-demo:latest@sha256:...
-		// To: {artifactRegistryRegion}-docker.pkg.dev/{project}/{repo}/staticaland/athame/mkdocs-demo:latest@sha256:...
-		// Extract the path after ghcr.io/
-		ghcrPath := addr[len("ghcr.io/"):]
-		artifactRegistryImage := fmt.Sprintf("%s-docker.pkg.dev/%s/%s/%s",
-			artifactRegistryRegion, gcloudProject, artifactRegistryRepo, ghcrPath)
+			// Transform GHCR image to Artifact Registry remote repo format
+			// From: ghcr.io/staticaland/athame/mkdocs-demo:latest@sha256:...
+			// To: {artifactRegistryRegion}-docker.pkg.dev/{project}/{repo}/staticaland/athame/mkdocs-demo:latest@sha256:...
+			// Extract the path after ghcr.io/
+			ghcrPath := addr[len("ghcr.io/"):]
+			artifactRegistryImage := fmt.Sprintf("%s-docker.pkg.dev/%s/%s/%s",
+				artifactRegistryRegion, gcloudProject, artifactRegistryRepo, ghcrPath)
 
-		_, err := dag.Gcloud().Deploy(ctx, gcloudService, artifactRegistryImage, gcloudProject, region, dagger.GcloudDeployOpts{
-			AllowUnauthenticated: gcloudAllowUnauthenticated,
-			ServiceAccountKey:    gcloudServiceAccountKey,
+			_, err := dag.Gcloud().Deploy(gctx, gcloudService, artifactRegistryImage, gcloudProject, region, dagger.GcloudDeployOpts{
+				AllowUnauthenticated: gcloudAllowUnauthenticated,
+				ServiceAccountKey:    gcloudServiceAccountKey,
+			})
+			if err != nil {
+				m.notify(gctx, "Check logs for details.", dagger.NtfySendOpts{
+					Title:    "Google Cloud Run Deploy Failed",
+					Priority: "high",
+					Tags:     "warning",
+				})
+				return fmt.Errorf("google cloud run deploy failed: %w", err)
+			}
+
+			gcloudUrl := fmt.Sprintf("https://%s-%s.run.app", gcloudService, region)
+			m.notify(gctx,
+				fmt.Sprintf("Deployed to Cloud Run.\n\n**Service:** %s", gcloudService),
+				dagger.NtfySendOpts{
+					Title:    "Google Cloud Run Deploy Completed",
+					Priority: "default",
+					Tags:     "white_check_mark",
+					Actions:  fmt.Sprintf("view, View Site, %s", gcloudUrl),
+					Markdown: true,
+				})
+			return nil
 		})
-		if err != nil {
-			// Send Google Cloud deploy failure notification
-			m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-				Title:    "Google Cloud Run Deploy Failed",
-				Priority: "high",
-				Tags:     "warning",
-			})
-			return fmt.Errorf("google cloud run deploy failed: %w", err)
-		}
-
-		// Send notification that Google Cloud deploy is complete
-		gcloudUrl := fmt.Sprintf("https://%s-%s.run.app", gcloudService, region)
-		m.notify(ctx,
-			fmt.Sprintf("Deployed to Cloud Run.\n\n**Service:** %s", gcloudService),
-			dagger.NtfySendOpts{
-				Title:    "Google Cloud Run Deploy Completed",
-				Priority: "default",
-				Tags:     "white_check_mark",
-				Actions:  fmt.Sprintf("view, View Site, %s", gcloudUrl),
-				Markdown: true,
-			})
 	}
 
-	return nil
+	// Wait for all deployments to complete
+	// Returns first error encountered, but all deployments run to completion
+	return eg.Wait()
 }
 
 // Build builds the MkDocs Material site
