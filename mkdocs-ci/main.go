@@ -52,147 +52,54 @@ func (m *MkdocsCi) notify(ctx context.Context, message string, opts dagger.NtfyS
 	}
 }
 
-// Vale runs vale linter on markdown files
-func (m *MkdocsCi) Vale(
-	ctx context.Context,
-) (string, error) {
-	siteDir := m.Source.Directory(m.SitePath)
-	return dag.Vale().Check(dagger.ValeCheckOpts{
-		Source: siteDir,
-		Path:   "docs",
-	}).Stdout(ctx)
-}
-
-// Prettier checks markdown formatting
-func (m *MkdocsCi) Prettier(
-	ctx context.Context,
-) (string, error) {
-	siteDir := m.Source.Directory(m.SitePath)
-	return dag.Prettier().Check(dagger.PrettierCheckOpts{
-		Source:  siteDir,
-		Pattern: "docs/**/*.md",
-	}).Stdout(ctx)
-}
-
-// Markdownlint runs markdownlint-cli2 on markdown files
-func (m *MkdocsCi) Markdownlint(
-	ctx context.Context,
-) (string, error) {
-	siteDir := m.Source.Directory(m.SitePath)
-	return dag.MarkdownlintCli2().Check(dagger.MarkdownlintCli2CheckOpts{
-		Source:  siteDir,
-		Pattern: "docs/**/*.md",
-	}).Stdout(ctx)
-}
-
-// CheckLinks validates links in markdown files using lychee
-func (m *MkdocsCi) CheckLinks(
-	ctx context.Context,
-) (string, error) {
-	siteDir := m.Source.Directory(m.SitePath)
-	return dag.Lychee().Check(dagger.LycheeCheckOpts{
-		Source: siteDir,
-		Path:   "docs",
-	}).Stdout(ctx)
-}
-
 // RunAllTests runs vale, prettier, markdownlint, and link checking concurrently
 func (m *MkdocsCi) RunAllTests(
 	ctx context.Context,
 ) error {
+	siteDir := m.Source.Directory(m.SitePath)
+
 	// Create error group
 	eg, gctx := errgroup.WithContext(ctx)
 
 	// Run vale
 	eg.Go(func() error {
-		_, err := m.Vale(gctx)
+		_, err := dag.Vale().Check(dagger.ValeCheckOpts{
+			Source: siteDir,
+			Path:   "docs",
+		}).Stdout(gctx)
 		return err
 	})
 
 	// Run prettier
 	eg.Go(func() error {
-		_, err := m.Prettier(gctx)
+		_, err := dag.Prettier().Check(dagger.PrettierCheckOpts{
+			Source:  siteDir,
+			Pattern: "docs/**/*.md",
+		}).Stdout(gctx)
 		return err
 	})
 
 	// Run markdownlint
 	eg.Go(func() error {
-		_, err := m.Markdownlint(gctx)
+		_, err := dag.MarkdownlintCli2().Check(dagger.MarkdownlintCli2CheckOpts{
+			Source:  siteDir,
+			Pattern: "docs/**/*.md",
+		}).Stdout(gctx)
 		return err
 	})
 
 	// Run link checking
 	eg.Go(func() error {
-		_, err := m.CheckLinks(gctx)
+		_, err := dag.Lychee().Check(dagger.LycheeCheckOpts{
+			Source: siteDir,
+			Path:   "docs",
+		}).Stdout(gctx)
 		return err
 	})
 
 	// Wait for all tests to complete
 	// If any test fails, the error will be returned
 	return eg.Wait()
-}
-
-// runTestsWithNotifications runs all tests with start and completion notifications
-func (m *MkdocsCi) runTestsWithNotifications(
-	ctx context.Context,
-) error {
-	// Send notification that deployment is starting
-	m.notify(ctx, "Starting tests...", dagger.NtfySendOpts{
-		Title:    "MkDocs CI/CD Started",
-		Priority: "default",
-		Tags:     "hourglass_flowing_sand",
-	})
-
-	// Run all tests concurrently
-	err := m.RunAllTests(ctx)
-	if err != nil {
-		// Send failure notification
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Tests Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return fmt.Errorf("tests failed: %w", err)
-	}
-
-	// Send notification that tests passed
-	m.notify(ctx, "Tests passed. Building site...", dagger.NtfySendOpts{
-		Title:    "Tests Completed",
-		Priority: "default",
-		Tags:     "white_check_mark",
-	})
-
-	return nil
-}
-
-// publishWithNotifications builds and publishes the site with notifications
-func (m *MkdocsCi) publishWithNotifications(
-	ctx context.Context,
-	ghcrToken *dagger.Secret,
-) (string, error) {
-	// Build and publish
-	addr, err := m.Publish(ctx, ghcrToken)
-	if err != nil {
-		// Send deployment failure notification
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Image Publishing Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return "", err
-	}
-
-	// Send notification that deployment is complete
-	m.notify(ctx,
-		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```\n\n**Run:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
-		dagger.NtfySendOpts{
-			Title:    "Image Publishing Completed",
-			Priority: "default",
-			Tags:     "white_check_mark",
-			Markdown: true,
-		})
-
-	return addr, nil
 }
 
 // deployToAllPlatforms deploys to Render, Fly.io, and Google Cloud Run based on provided credentials
@@ -398,16 +305,53 @@ func (m *MkdocsCi) LintBuildPublish(
 	// Artifact Registry region (can be different from Cloud Run region)
 	artifactRegistryRegion string,
 ) (string, error) {
-	// Run tests with notifications
-	if err := m.runTestsWithNotifications(ctx); err != nil {
+	// Send notification that deployment is starting
+	m.notify(ctx, "Starting tests...", dagger.NtfySendOpts{
+		Title:    "MkDocs CI/CD Started",
+		Priority: "default",
+		Tags:     "hourglass_flowing_sand",
+	})
+
+	// Run all tests concurrently
+	err := m.RunAllTests(ctx)
+	if err != nil {
+		// Send failure notification
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Tests Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return "", fmt.Errorf("tests failed: %w", err)
+	}
+
+	// Send notification that tests passed
+	m.notify(ctx, "Tests passed. Building site...", dagger.NtfySendOpts{
+		Title:    "Tests Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
+
+	// Build and publish
+	addr, err := m.Publish(ctx, ghcrToken)
+	if err != nil {
+		// Send deployment failure notification
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Image Publishing Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
 		return "", err
 	}
 
-	// Build and publish with notifications
-	addr, err := m.publishWithNotifications(ctx, ghcrToken)
-	if err != nil {
-		return "", err
-	}
+	// Send notification that deployment is complete
+	m.notify(ctx,
+		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```\n\n**Run:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
+		dagger.NtfySendOpts{
+			Title:    "Image Publishing Completed",
+			Priority: "default",
+			Tags:     "white_check_mark",
+			Markdown: true,
+		})
 
 	// Deploy to all platforms
 	if err := m.deployToAllPlatforms(
