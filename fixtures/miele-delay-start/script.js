@@ -172,6 +172,15 @@ if (typeof document !== 'undefined') {
   document.getElementById("calcBtn").addEventListener("click", calculate);
   document.getElementById("nowBtn").addEventListener("click", setNow);
 
+  // Add event listener to program dropdown
+  document.getElementById("programSelect").addEventListener("change", (e) => {
+    const duration = e.target.value;
+    if (duration) {
+      document.getElementById("duration").value = duration;
+      e.target.value = ""; // Reset dropdown to placeholder
+    }
+  });
+
   // Prefill current time & a typical duration
   window.addEventListener("load", () => {
     setNow();
