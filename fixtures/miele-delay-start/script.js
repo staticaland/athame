@@ -241,6 +241,48 @@ if (typeof document !== 'undefined') {
   durationInput.addEventListener("input", calculate);
   finishTimeInput.addEventListener("input", calculate);
 
+  // Quick adjustment buttons
+  document.getElementById("add30m").addEventListener("click", () => {
+    const currentValue = finishTimeInput.value;
+    if (currentValue) {
+      const currentMin = parseTimeHM(currentValue);
+      if (currentMin !== null) {
+        const newMin = currentMin + 30;
+        finishTimeInput.value = formatHM(newMin);
+        calculate();
+      }
+    }
+  });
+
+  document.getElementById("add1h").addEventListener("click", () => {
+    const currentValue = finishTimeInput.value;
+    if (currentValue) {
+      const currentMin = parseTimeHM(currentValue);
+      if (currentMin !== null) {
+        const newMin = currentMin + 60;
+        finishTimeInput.value = formatHM(newMin);
+        calculate();
+      }
+    }
+  });
+
+  // Cycle through smart finish times (9am → 5pm → 10pm → 9am)
+  document.getElementById("nextTime").addEventListener("click", () => {
+    const currentValue = finishTimeInput.value;
+    const smartTimes = ["09:00", "17:00", "22:00"];
+
+    let nextIndex = 0;
+    if (currentValue) {
+      const currentIndex = smartTimes.indexOf(currentValue);
+      if (currentIndex !== -1) {
+        nextIndex = (currentIndex + 1) % smartTimes.length;
+      }
+    }
+
+    finishTimeInput.value = smartTimes[nextIndex];
+    calculate();
+  });
+
 
   // Add event listener to program dropdown
   programSelect.addEventListener("change", (e) => {
