@@ -8,52 +8,90 @@
 </head>
 <body class="bg-gray-50 text-gray-900 p-4 sm:p-6 font-sans min-h-screen">
   <div class="max-w-lg mx-auto pb-8">
-    <h1 class="text-lg sm:text-2xl font-semibold mb-4 sm:mb-5">Miele delay start</h1>
-
-    <!-- Finish Time Frame -->
+    <!-- Finish Time Card -->
     <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-lg mb-3 sm:mb-4 border border-gray-200">
-      <label for="finishTime" class="block text-sm sm:text-[0.9rem] mb-1.5 text-gray-700 font-medium">Desired finish time</label>
+      <label for="finishTime" class="block text-sm sm:text-[0.9rem] mb-2 text-gray-700 font-medium">Have your laundry done around</label>
       <div class="flex gap-2 items-center">
         <input id="finishTime" type="time" step="60" class="w-24 px-2 sm:px-3 py-2.5 rounded-lg border-2 border-gray-400 bg-white text-gray-900 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 box-border shadow-sm" />
         <button id="add30m" class="px-2 py-1.5 text-xs font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">+30m</button>
         <button id="add1h" class="px-2 py-1.5 text-xs font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">+1h</button>
-        <button id="nextTime" class="px-2 py-1.5 text-xs font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">Next</button>
       </div>
     </div>
 
-    <!-- Program Frame -->
-    <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-lg mb-3 sm:mb-4 border border-gray-200">
-      <label for="duration" class="block text-sm sm:text-[0.9rem] mb-1.5 text-gray-700 font-medium">Programme length</label>
-      <div class="flex flex-col gap-2.5">
-        <input id="duration" type="time" step="60" class="w-24 px-2 sm:px-3 py-2.5 rounded-lg border-2 border-gray-400 bg-white text-gray-900 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 box-border shadow-sm" />
-        <select id="programSelect" class="w-full pl-2 sm:pl-3 pr-8 sm:pr-10 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border">
-          <option value="">Select program...</option>
-          <option value="3:00">ECO 40-60 (3:00)</option>
-          <option value="1:26">Bomull (1:26)</option>
-          <option value="1:39">Strygelet (1:39)</option>
-          <option value="1:04">Finvask (1:04)</option>
-          <option value="0:39">Uld (0:39)</option>
-          <option value="0:30">Express 20 (0:30)</option>
-          <option value="1:31">Mørkt (1:31)</option>
-          <option value="1:36">Skjorter (1:36)</option>
-          <option value="0:39">Imprægnering (0:39)</option>
-          <option value="0:49">QuickIntense (0:49)</option>
-          <option value="2:28">Sanitize (2:28)</option>
-        </select>
+    <!-- Program Card with Tabbed Interface -->
+    <div class="bg-white rounded-2xl shadow-lg mb-3 sm:mb-4 border border-gray-200 overflow-hidden">
+      <!-- Tab Navigation -->
+      <div class="flex border-b border-gray-200">
+        <button id="tabProgram" class="flex-1 px-4 py-3 text-sm sm:text-base font-medium text-blue-600 border-b-2 border-blue-600 bg-blue-50 focus:outline-none transition-colors">
+          Program
+        </button>
+        <button id="tabTime" class="flex-1 px-4 py-3 text-sm sm:text-base font-medium text-gray-500 hover:text-gray-700 focus:outline-none transition-colors">
+          Custom time
+        </button>
       </div>
-      <div id="error" class="text-red-600 text-sm mt-2"></div>
+
+      <!-- Tab Content -->
+      <div class="p-4 sm:p-5">
+        <!-- Program Tab Content -->
+        <div id="programTabContent">
+          <label for="programSelect" class="block text-sm sm:text-[0.9rem] mb-2 text-gray-700 font-medium">Select program</label>
+          <select id="programSelect" class="w-full pl-2 sm:pl-3 pr-8 sm:pr-10 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border">
+            <option value="">Select program...</option>
+            <option value="3:00">ECO 40-60 (3:00)</option>
+            <option value="1:26">Bomull (1:26)</option>
+            <option value="1:39">Strygelet (1:39)</option>
+            <option value="1:04">Finvask (1:04)</option>
+            <option value="0:39">Uld (0:39)</option>
+            <option value="0:30">Express 20 (0:30)</option>
+            <option value="1:31">Mørkt (1:31)</option>
+            <option value="1:36">Skjorter (1:36)</option>
+            <option value="0:39">Imprægnering (0:39)</option>
+            <option value="0:49">QuickIntense (0:49)</option>
+            <option value="2:28">Sanitize (2:28)</option>
+          </select>
+        </div>
+
+        <!-- Time Tab Content (Hidden by default) -->
+        <div id="timeTabContent" class="hidden">
+          <label for="duration" class="block text-sm sm:text-[0.9rem] mb-2 text-gray-700 font-medium">Program length</label>
+          <input id="duration" type="time" step="60" class="w-24 px-2 sm:px-3 py-2.5 rounded-lg border-2 border-gray-400 bg-white text-gray-900 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 box-border shadow-sm" />
+        </div>
+
+        <!-- Error messages -->
+        <div id="error" class="text-red-600 text-sm mt-3"></div>
+      </div>
     </div>
 
-  <!-- Timeline visualization -->
-  <div id="timelineCard" class="bg-white rounded-2xl p-4 sm:p-5 shadow-lg mb-3 sm:mb-4 border border-gray-200 hidden">
-    <div class="text-xs sm:text-sm font-medium mb-3 text-gray-600">Timeline</div>
-    <div id="timeline" class="space-y-2"></div>
-  </div>
+    <!-- Result Card -->
+    <div id="resultCard" class="bg-white rounded-2xl p-4 sm:p-5 shadow-lg mb-3 sm:mb-4 border border-gray-200 hidden">
+      <div class="mb-4">
+        <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 sm:p-4 mb-3">
+          <div class="text-sm text-gray-700 mb-1">Set your machine to</div>
+          <div id="delayValue" class="text-xl sm:text-2xl font-bold text-blue-600 mb-2">Delay start: 12 h</div>
+          <div id="delayDetails" class="text-xs sm:text-sm text-gray-600"></div>
+        </div>
 
-  <div id="delayCard" class="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-5 sm:p-6 shadow-xl mb-3 sm:mb-4 text-white hidden">
-    <div id="delayValue" class="text-3xl sm:text-5xl font-bold mb-3 break-words"></div>
-    <div id="delayDetails" class="text-sm sm:text-base opacity-90 leading-relaxed"></div>
-  </div>
+        <div class="text-sm text-gray-600 mb-1">Finish around</div>
+        <div id="finishAround" class="text-2xl sm:text-3xl font-bold text-gray-900"></div>
+      </div>
+
+      <!-- Collapsible Timeline -->
+      <details class="mt-4">
+        <summary class="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-700 select-none">Show timeline</summary>
+        <div id="timeline" class="space-y-2 mt-3"></div>
+      </details>
+    </div>
+
+    <!-- Cheer Section -->
+    <div class="bg-gradient-to-r from-blue-50 to-green-50 rounded-2xl p-4 sm:p-5 shadow-lg border border-blue-200 mb-3 sm:mb-4 mt-12 sm:mt-16">
+      <div id="cheer" class="text-sm sm:text-base text-gray-800 font-medium text-center"></div>
+    </div>
+
+    <!-- Quote Section -->
+    <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-lg border border-gray-200">
+      <div id="quote" class="text-sm sm:text-base text-gray-700 italic"></div>
+      <div id="quoteAuthor" class="text-xs sm:text-sm text-gray-500 mt-2"></div>
+    </div>
 
     <script type="module" src="script.js"></script>
   </div>

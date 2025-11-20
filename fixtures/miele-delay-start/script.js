@@ -78,9 +78,6 @@ export function quantizeDelay(delayMinutes) {
 
 function renderTimeline(nowMin, startMin, durMin, finishMin) {
   const timelineEl = document.getElementById("timeline");
-  const timelineCardEl = document.getElementById("timelineCard");
-
-  timelineCardEl.classList.remove("hidden");
 
   const delayMin = startMin - nowMin;
   const totalMin = finishMin - nowMin;
@@ -150,14 +147,13 @@ function renderTimeline(nowMin, startMin, durMin, finishMin) {
 
 function calculate() {
   const errorEl = document.getElementById("error");
-  const delayCardEl = document.getElementById("delayCard");
+  const resultCardEl = document.getElementById("resultCard");
   const delayValueEl = document.getElementById("delayValue");
   const delayDetailsEl = document.getElementById("delayDetails");
-  const timelineCardEl = document.getElementById("timelineCard");
+  const finishAroundEl = document.getElementById("finishAround");
 
   errorEl.textContent = "";
-  delayCardEl.classList.add("hidden");
-  timelineCardEl.classList.add("hidden");
+  resultCardEl.classList.add("hidden");
 
   // Get current time automatically
   const now = new Date();
@@ -170,7 +166,7 @@ function calculate() {
   const finishMinRaw = parseTimeHM(finishStr);
 
   if (durMin === null || finishMinRaw === null) {
-    errorEl.textContent = "Check that programme length and finish time are filled in correctly.";
+    errorEl.textContent = "Check that program length and finish time are filled in correctly.";
     return;
   }
 
@@ -203,13 +199,17 @@ function calculate() {
   const exactDelayText = formatDuration(delayMin);
   const delayText = formatDuration(quantizedDelay);
 
+  // Convert delay minutes to hours for display
+  const delayHours = Math.round(quantizedDelay / 60);
+
   // Show timeline visualization
   renderTimeline(nowMin, startTime, durMin, finishTime);
 
-  // Show prominent delay card
-  delayCardEl.classList.remove("hidden");
-  delayValueEl.textContent = delayText;
-  delayDetailsEl.innerHTML = `Finish at ~<strong>${formatHM(finishTime)}</strong>`;
+  // Show result card
+  resultCardEl.classList.remove("hidden");
+  finishAroundEl.textContent = formatHM(finishTime);
+  delayValueEl.textContent = `Delay start: ${delayHours} h`;
+  delayDetailsEl.textContent = `Starts at ${formatHM(startTime)}, runs ${formatDuration(durMin)}`;
 }
 
 function setSmartFinishTime() {
@@ -218,8 +218,8 @@ function setSmartFinishTime() {
 
   let finishTime;
   if (h >= 20 || h < 6) {
-    // Late evening or early morning → finish at 9am
-    finishTime = "09:00";
+    // Late evening or early morning → finish at 9:30am
+    finishTime = "09:30";
   } else if (h >= 6 && h < 14) {
     // Morning/early afternoon → finish at 5pm
     finishTime = "17:00";
@@ -231,8 +231,89 @@ function setSmartFinishTime() {
   document.getElementById("finishTime").value = finishTime;
 }
 
+const quotes = [
+  { text: "The first electric washing machine was invented in 1908 by Alva J. Fisher. Before that, laundry day could take an entire day of hard labor.", author: "Historical fact" },
+  { text: "Ancient Romans used urine as a cleaning agent for laundry. It contains ammonia, which is still used in modern cleaning products.", author: "Historical fact" },
+  { text: "In medieval Europe, laundry was done only 3-4 times a year. People owned very few clothes and wore them until they were visibly dirty.", author: "Historical fact" },
+  { text: "The delay start function was first introduced in the 1980s, revolutionizing how people could schedule their laundry around electricity rates.", author: "Technology history" },
+  { text: "Miele was founded in 1899 by Carl Miele and Reinhard Zinkann in Herzebrock, Germany. Their motto 'Immer besser' (Forever better) still guides the company.", author: "Company history" },
+  { text: "Before washing machines, a 'washing day' typically involved boiling water in large copper tubs, scrubbing with lye soap, and wringing by hand.", author: "Historical fact" },
+  { text: "The average washing machine uses about 50 liters of water per cycle. Modern eco-programs can reduce this by up to 40%.", author: "Environmental fact" },
+  { text: "In 18th century England, wealthy families sent their laundry to professional laundresses who worked in communal wash houses.", author: "Historical fact" },
+  { text: "The rotating drum design, standard in modern machines, was patented in 1858 by Hamilton Smith.", author: "Patent history" },
+  { text: "Blue dye was traditionally added to white laundry to make it appear whiter by counteracting yellow tints. This practice dates back to ancient times.", author: "Historical fact" },
+  { text: "The first laundromats appeared in the 1930s in the US, making washing machines accessible to people who couldn't afford their own.", author: "Social history" },
+  { text: "Soap was a luxury item until the 19th century. Most people used wood ash, sand, or clay to clean their clothes.", author: "Historical fact" },
+  { text: "Monday was traditionally wash day because Sunday leftovers could be eaten while doing laundry, freeing up the rest of the week for other tasks.", author: "Cultural tradition" },
+  { text: "The first fully automatic washing machine was introduced by Bendix in 1937. It could wash, rinse, and spin dry without user intervention.", author: "Technology history" },
+  { text: "Energy-efficient washing machines can save an average household over 7,000 liters of water per year compared to older models.", author: "Environmental fact" }
+];
+
+function displayRandomQuote() {
+  const randomIndex = Math.floor(Math.random() * quotes.length);
+  const quote = quotes[randomIndex];
+  document.getElementById("quote").textContent = `"${quote.text}"`;
+  document.getElementById("quoteAuthor").textContent = `— ${quote.author}`;
+}
+
+const cheers = [
+  "You're absolutely crushing this whole adulting thing!",
+  "You deserve fresh, perfectly timed laundry. And that's exactly what you're getting!",
+  "You're the kind of person who plans ahead. That's powerful!",
+  "You're making tomorrow-you so incredibly happy right now!",
+  "You're not just doing laundry, you're mastering time itself!",
+  "You're going to wake up tomorrow feeling like a genius. Because you are one!",
+  "You're turning a mundane task into an art form. Respect!",
+  "You're basically a time wizard, and your fresh laundry is proof!",
+  "You're the hero your future self didn't know they needed!",
+  "You're making life easier for yourself. That's self-love right there!",
+  "You're going to feel so satisfied when that machine beeps at the perfect time!",
+  "You're living in 3024 while everyone else is stuck in manual mode!",
+  "You're taking control of your schedule like the boss you are!",
+  "You're about to experience the pure joy of perfectly timed clean clothes!",
+  "You're doing something kind for yourself today. That matters!"
+];
+
+function displayRandomCheer() {
+  const randomIndex = Math.floor(Math.random() * cheers.length);
+  document.getElementById("cheer").textContent = cheers[randomIndex];
+}
+
 // Only run DOM code in browser environment (not in tests)
 if (typeof document !== 'undefined') {
+  // Tab switching logic
+  const tabProgram = document.getElementById("tabProgram");
+  const tabTime = document.getElementById("tabTime");
+  const programTabContent = document.getElementById("programTabContent");
+  const timeTabContent = document.getElementById("timeTabContent");
+
+  function switchToTab(tabName) {
+    if (tabName === "program") {
+      // Update tab buttons
+      tabProgram.classList.add("text-blue-600", "border-b-2", "border-blue-600", "bg-blue-50");
+      tabProgram.classList.remove("text-gray-500", "hover:text-gray-700");
+      tabTime.classList.remove("text-blue-600", "border-b-2", "border-blue-600", "bg-blue-50");
+      tabTime.classList.add("text-gray-500", "hover:text-gray-700");
+
+      // Show/hide content
+      programTabContent.classList.remove("hidden");
+      timeTabContent.classList.add("hidden");
+    } else {
+      // Update tab buttons
+      tabTime.classList.add("text-blue-600", "border-b-2", "border-blue-600", "bg-blue-50");
+      tabTime.classList.remove("text-gray-500", "hover:text-gray-700");
+      tabProgram.classList.remove("text-blue-600", "border-b-2", "border-blue-600", "bg-blue-50");
+      tabProgram.classList.add("text-gray-500", "hover:text-gray-700");
+
+      // Show/hide content
+      timeTabContent.classList.remove("hidden");
+      programTabContent.classList.add("hidden");
+    }
+  }
+
+  tabProgram.addEventListener("click", () => switchToTab("program"));
+  tabTime.addEventListener("click", () => switchToTab("time"));
+
   // Auto-calculate on input changes
   const durationInput = document.getElementById("duration");
   const finishTimeInput = document.getElementById("finishTime");
@@ -266,24 +347,6 @@ if (typeof document !== 'undefined') {
     }
   });
 
-  // Cycle through smart finish times (9am → 5pm → 10pm → 9am)
-  document.getElementById("nextTime").addEventListener("click", () => {
-    const currentValue = finishTimeInput.value;
-    const smartTimes = ["09:00", "17:00", "22:00"];
-
-    let nextIndex = 0;
-    if (currentValue) {
-      const currentIndex = smartTimes.indexOf(currentValue);
-      if (currentIndex !== -1) {
-        nextIndex = (currentIndex + 1) % smartTimes.length;
-      }
-    }
-
-    finishTimeInput.value = smartTimes[nextIndex];
-    calculate();
-  });
-
-
   // Add event listener to program dropdown
   programSelect.addEventListener("change", (e) => {
     const duration = e.target.value;
@@ -306,6 +369,8 @@ if (typeof document !== 'undefined') {
       durEl.value = formatHM(defaultDur); // Bomull default in HH:MM format
     }
     programSelect.value = "1:26"; // Default to Bomull
+    displayRandomQuote(); // Show random quote
+    displayRandomCheer(); // Show random cheer
     calculate(); // Initial calculation
   });
 }
