@@ -1,8 +1,8 @@
-function pad2(n) {
+export function pad2(n) {
   return n.toString().padStart(2, "0");
 }
 
-function parseTimeHM(str) {
+export function parseTimeHM(str) {
   // "HH:MM" -> minutes from midnight
   if (!str || !str.includes(":")) return null;
   const [hStr, mStr] = str.split(":");
@@ -16,7 +16,7 @@ function parseTimeHM(str) {
   return h * 60 + m;
 }
 
-function parseDuration(str) {
+export function parseDuration(str) {
   // "H:MM" or "HH:MM" -> minutes
   if (!str || !str.includes(":")) return null;
   const [hStr, mStr] = str.split(":");
@@ -29,14 +29,14 @@ function parseDuration(str) {
   return h * 60 + m;
 }
 
-function formatHM(minutes) {
+export function formatHM(minutes) {
   minutes = ((minutes % (24 * 60)) + (24 * 60)) % (24 * 60); // wrap 0–1439
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return pad2(h) + ":" + pad2(m);
 }
 
-function formatDuration(min) {
+export function formatDuration(min) {
   const h = Math.floor(min / 60);
   const m = min % 60;
   const parts = [];
@@ -46,7 +46,7 @@ function formatDuration(min) {
   return parts.join(" ");
 }
 
-function quantizeForW1Delay(delayMinutes) {
+export function quantizeForW1Delay(delayMinutes) {
   const MIN_DELAY = 30;         // 30 min
   const MAX_DELAY = 24 * 60;    // 24 h
 
@@ -143,12 +143,15 @@ function setNow() {
   document.getElementById("currentTime").value = t;
 }
 
-document.getElementById("calcBtn").addEventListener("click", calculate);
-document.getElementById("nowBtn").addEventListener("click", setNow);
+// Only run DOM code in browser environment (not in tests)
+if (typeof document !== 'undefined') {
+  document.getElementById("calcBtn").addEventListener("click", calculate);
+  document.getElementById("nowBtn").addEventListener("click", setNow);
 
-// Prefill current time & a typical duration
-window.addEventListener("load", () => {
-  setNow();
-  const durEl = document.getElementById("duration");
-  if (!durEl.value) durEl.value = "03:39"; // your example
-});
+  // Prefill current time & a typical duration
+  window.addEventListener("load", () => {
+    setNow();
+    const durEl = document.getElementById("duration");
+    if (!durEl.value) durEl.value = "03:39"; // your example
+  });
+}
