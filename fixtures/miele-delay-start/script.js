@@ -71,8 +71,13 @@ export function quantizeForW1Delay(delayMinutes) {
 function calculate() {
   const errorEl = document.getElementById("error");
   const resEl = document.getElementById("results");
+  const w1CardEl = document.getElementById("w1DelayCard");
+  const w1ValueEl = document.getElementById("w1DelayValue");
+  const w1DetailsEl = document.getElementById("w1DelayDetails");
+
   errorEl.textContent = "";
   resEl.innerHTML = "";
+  w1CardEl.classList.add("hidden");
 
   const currentStr = document.getElementById("currentTime").value;
   const durationStr = document.getElementById("duration").value.trim();
@@ -116,6 +121,12 @@ function calculate() {
   const exactDelayText = formatDuration(delayMin);
   const w1DelayText = formatDuration(delayW1);
 
+  // Show prominent W1 delay card
+  w1CardEl.classList.remove("hidden");
+  w1ValueEl.textContent = w1DelayText;
+  w1DetailsEl.innerHTML = `Start at <strong>${formatHM(startW1)}</strong> → finish at ~<strong>${formatHM(finishW1)}</strong>`;
+
+  // Show detailed calculation
   resEl.innerHTML = `
     <div class="mb-1">
       <span class="text-gray-600">Exact math:</span>
@@ -123,14 +134,8 @@ function calculate() {
       → start at <span class="font-semibold text-blue-600">${formatHM(startExact)}</span>
       → finish at ~${formatHM(startExact + durMin)}.
     </div>
-    <div class="mb-1">
-      <span class="text-gray-600">Closest W1 delay setting:</span>
-      <span class="font-semibold text-blue-600">${w1DelayText}</span>
-      → start at <span class="font-semibold text-blue-600">${formatHM(startW1)}</span>
-      → finish at ~${formatHM(finishW1)}.
-    </div>
-    <div class="text-xs text-gray-600">
-      (W1 typically uses 30-min steps up to 10 h, then 1-h steps up to 24 h.)
+    <div class="text-xs text-gray-600 mt-2">
+      W1 typically uses 30-min steps up to 10 h, then 1-h steps up to 24 h.
     </div>
   `;
 }
@@ -143,6 +148,25 @@ function setNow() {
   document.getElementById("currentTime").value = t;
 }
 
+function setSmartFinishTime() {
+  const now = new Date();
+  const h = now.getHours();
+
+  let finishTime;
+  if (h >= 20 || h < 6) {
+    // Late evening or early morning → finish at 9am
+    finishTime = "09:00";
+  } else if (h >= 6 && h < 14) {
+    // Morning/early afternoon → finish at 5pm
+    finishTime = "17:00";
+  } else {
+    // Afternoon/evening → finish at 10pm
+    finishTime = "22:00";
+  }
+
+  document.getElementById("finishTime").value = finishTime;
+}
+
 // Only run DOM code in browser environment (not in tests)
 if (typeof document !== 'undefined') {
   document.getElementById("calcBtn").addEventListener("click", calculate);
@@ -151,6 +175,7 @@ if (typeof document !== 'undefined') {
   // Prefill current time & a typical duration
   window.addEventListener("load", () => {
     setNow();
+    setSmartFinishTime();
     const durEl = document.getElementById("duration");
     if (!durEl.value) durEl.value = "03:39"; // your example
   });
