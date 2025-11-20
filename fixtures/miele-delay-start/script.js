@@ -17,8 +17,16 @@ export function parseTimeHM(str) {
 }
 
 export function parseDuration(str) {
-  // "H:MM" or "HH:MM" -> minutes
-  if (!str || !str.includes(":")) return null;
+  // "H:MM" or "HH:MM" or "H" (defaults to H:00) -> minutes
+  if (!str) return null;
+
+  if (!str.includes(":")) {
+    // Just hours, default minutes to 00
+    const h = Number(str);
+    if (Number.isNaN(h) || h < 0) return null;
+    return h * 60;
+  }
+
   const [hStr, mStr] = str.split(":");
   const h = Number(hStr);
   const m = Number(mStr);
@@ -46,7 +54,7 @@ export function formatDuration(min) {
   return parts.join(" ");
 }
 
-export function quantizeForW1Delay(delayMinutes) {
+export function quantizeDelay(delayMinutes) {
   const MIN_DELAY = 30;         // 30 min
   const MAX_DELAY = 24 * 60;    // 24 h
 
@@ -68,27 +76,101 @@ export function quantizeForW1Delay(delayMinutes) {
   return snapped;
 }
 
+function renderTimeline(nowMin, startMin, durMin, finishMin) {
+  const timelineEl = document.getElementById("timeline");
+  const timelineCardEl = document.getElementById("timelineCard");
+
+  timelineCardEl.classList.remove("hidden");
+
+  const delayMin = startMin - nowMin;
+  const totalMin = finishMin - nowMin;
+
+  // Calculate percentages for visualization
+  const waitPercent = (delayMin / totalMin) * 100;
+  const runPercent = (durMin / totalMin) * 100;
+
+  timelineEl.innerHTML = `
+    <div class="flex items-center gap-2 text-xs sm:text-sm">
+      <div class="w-16 sm:w-20 text-gray-600 font-medium">Now</div>
+      <div class="flex-1 flex items-center">
+        <div class="w-3 h-3 rounded-full bg-gray-400"></div>
+        <div class="text-gray-500 ml-2">${formatHM(nowMin)}</div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <div class="w-16 sm:w-20"></div>
+      <div class="flex-1">
+        <div class="h-1 bg-gray-200 rounded"></div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 text-xs sm:text-sm">
+      <div class="w-16 sm:w-20 text-gray-600">Wait</div>
+      <div class="flex-1 relative">
+        <div class="h-8 bg-yellow-100 rounded-lg border-2 border-yellow-300 flex items-center px-2">
+          <span class="text-xs font-medium text-yellow-800">${formatDuration(delayMin)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 text-xs sm:text-sm">
+      <div class="w-16 sm:w-20 text-gray-600 font-medium">Start</div>
+      <div class="flex-1 flex items-center">
+        <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+        <div class="text-blue-600 font-medium ml-2">${formatHM(startMin)}</div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <div class="w-16 sm:w-20"></div>
+      <div class="flex-1">
+        <div class="h-1 bg-gray-200 rounded"></div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 text-xs sm:text-sm">
+      <div class="w-16 sm:w-20 text-gray-600">Running</div>
+      <div class="flex-1 relative">
+        <div class="h-8 bg-blue-100 rounded-lg border-2 border-blue-300 flex items-center px-2">
+          <span class="text-xs font-medium text-blue-800">${formatDuration(durMin)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 text-xs sm:text-sm">
+      <div class="w-16 sm:w-20 text-gray-600 font-medium">Finish</div>
+      <div class="flex-1 flex items-center">
+        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+        <div class="text-green-600 font-medium ml-2">${formatHM(finishMin)}</div>
+      </div>
+    </div>
+  `;
+}
+
 function calculate() {
   const errorEl = document.getElementById("error");
-  const resEl = document.getElementById("results");
-  const w1CardEl = document.getElementById("w1DelayCard");
-  const w1ValueEl = document.getElementById("w1DelayValue");
-  const w1DetailsEl = document.getElementById("w1DelayDetails");
+  const delayCardEl = document.getElementById("delayCard");
+  const delayValueEl = document.getElementById("delayValue");
+  const delayDetailsEl = document.getElementById("delayDetails");
+  const timelineCardEl = document.getElementById("timelineCard");
 
   errorEl.textContent = "";
-  resEl.innerHTML = "";
-  w1CardEl.classList.add("hidden");
+  delayCardEl.classList.add("hidden");
+  timelineCardEl.classList.add("hidden");
 
-  const currentStr = document.getElementById("currentTime").value;
-  const durationStr = document.getElementById("duration").value.trim();
+  // Get current time automatically
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  const durationStr = document.getElementById("duration").value;
   const finishStr = document.getElementById("finishTime").value;
 
-  const nowMin = parseTimeHM(currentStr);
-  const durMin = parseDuration(durationStr);
+  const durMin = parseTimeHM(durationStr);
   const finishMinRaw = parseTimeHM(finishStr);
 
-  if (nowMin === null || durMin === null || finishMinRaw === null) {
-    errorEl.textContent = "Check that all times are filled in as HH:MM.";
+  if (durMin === null || finishMinRaw === null) {
+    errorEl.textContent = "Check that programme length and finish time are filled in correctly.";
     return;
   }
 
@@ -109,43 +191,25 @@ function calculate() {
 
   if (delayMin > 24 * 60) {
     errorEl.textContent =
-      "Delay would be more than 24 hours, which is beyond what W1 usually supports.";
+      "Delay would be more than 24 hours, which is beyond what is usually supported.";
     return;
   }
 
-  const delayW1 = quantizeForW1Delay(delayMin);
+  const quantizedDelay = quantizeDelay(delayMin);
   const startExact = nowMin + delayMin;
-  const startW1 = nowMin + delayW1;
-  const finishW1 = startW1 + durMin;
+  const startTime = nowMin + quantizedDelay;
+  const finishTime = startTime + durMin;
 
   const exactDelayText = formatDuration(delayMin);
-  const w1DelayText = formatDuration(delayW1);
+  const delayText = formatDuration(quantizedDelay);
 
-  // Show prominent W1 delay card
-  w1CardEl.classList.remove("hidden");
-  w1ValueEl.textContent = w1DelayText;
-  w1DetailsEl.innerHTML = `Start at <strong>${formatHM(startW1)}</strong> → finish at ~<strong>${formatHM(finishW1)}</strong>`;
+  // Show timeline visualization
+  renderTimeline(nowMin, startTime, durMin, finishTime);
 
-  // Show detailed calculation
-  resEl.innerHTML = `
-    <div class="mb-1">
-      <span class="text-gray-600">Exact math:</span>
-      <span class="font-semibold text-blue-600">${exactDelayText}</span> delay
-      → start at <span class="font-semibold text-blue-600">${formatHM(startExact)}</span>
-      → finish at ~${formatHM(startExact + durMin)}.
-    </div>
-    <div class="text-xs text-gray-600 mt-2">
-      W1 typically uses 30-min steps up to 10 h, then 1-h steps up to 24 h.
-    </div>
-  `;
-}
-
-function setNow() {
-  const now = new Date();
-  const h = now.getHours();
-  const m = now.getMinutes();
-  const t = pad2(h) + ":" + pad2(m);
-  document.getElementById("currentTime").value = t;
+  // Show prominent delay card
+  delayCardEl.classList.remove("hidden");
+  delayValueEl.textContent = delayText;
+  delayDetailsEl.innerHTML = `Finish at ~<strong>${formatHM(finishTime)}</strong>`;
 }
 
 function setSmartFinishTime() {
@@ -169,23 +233,37 @@ function setSmartFinishTime() {
 
 // Only run DOM code in browser environment (not in tests)
 if (typeof document !== 'undefined') {
-  document.getElementById("calcBtn").addEventListener("click", calculate);
-  document.getElementById("nowBtn").addEventListener("click", setNow);
+  // Auto-calculate on input changes
+  const durationInput = document.getElementById("duration");
+  const finishTimeInput = document.getElementById("finishTime");
+  const programSelect = document.getElementById("programSelect");
+
+  durationInput.addEventListener("input", calculate);
+  finishTimeInput.addEventListener("input", calculate);
+
 
   // Add event listener to program dropdown
-  document.getElementById("programSelect").addEventListener("change", (e) => {
+  programSelect.addEventListener("change", (e) => {
     const duration = e.target.value;
     if (duration) {
-      document.getElementById("duration").value = duration;
-      e.target.value = ""; // Reset dropdown to placeholder
+      // Convert to HH:MM format for time input
+      const durMin = parseDuration(duration);
+      if (durMin !== null) {
+        durationInput.value = formatHM(durMin);
+      }
+      calculate(); // Trigger calculation
     }
   });
 
-  // Prefill current time & a typical duration
+  // Prefill smart finish time & a typical duration
   window.addEventListener("load", () => {
-    setNow();
     setSmartFinishTime();
     const durEl = document.getElementById("duration");
-    if (!durEl.value) durEl.value = "03:39"; // your example
+    if (!durEl.value) {
+      const defaultDur = parseDuration("1:26");
+      durEl.value = formatHM(defaultDur); // Bomull default in HH:MM format
+    }
+    programSelect.value = "1:26"; // Default to Bomull
+    calculate(); // Initial calculation
   });
 }

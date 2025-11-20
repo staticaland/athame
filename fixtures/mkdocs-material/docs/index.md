@@ -8,6 +8,8 @@ Now with Google Cloud remote.
 
 Now in correct region.
 
+Hello from demo.
+
 ## About
 
 This is a minimal example site using the Material for MkDocs theme.

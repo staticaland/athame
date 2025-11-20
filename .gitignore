@@ -36,3 +36,6 @@ go.work.sum
 # gcloud service account keys
 **/service-account-key.json
 **/service-account.json
+
+# dagger logs
+*.log
