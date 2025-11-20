@@ -47,6 +47,22 @@ Preview the production build locally:
 npm run preview
 ```
 
+### Testing
+
+Run the test suite:
+
+```bash
+npm test
+```
+
+Run tests with UI:
+
+```bash
+npm run test:ui
+```
+
+The test suite covers all core calculator functions including time parsing, formatting, and the W1-specific delay quantization logic.
+
 ## How It Works
 
 1. Enter the current time (or click "Use now" to auto-fill)
@@ -70,6 +86,7 @@ Typical W1 behaviour (check your exact model manual):
 - Pure HTML/CSS/JavaScript with ES modules
 - Zero runtime dependencies
 - Built with Vite for fast development and optimized production builds
+- Tested with Vitest (13 unit tests)
 - Hot module replacement in development mode
 - Works offline once loaded
 
