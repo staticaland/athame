@@ -4,6 +4,14 @@ A standalone web calculator to help determine when to start your Miele W1 washin
 
 ## Features
 
+- **Program Presets**: Quick selection from common Miele W1 washing programs with typical durations:
+  - Cottons (60°C, 40°C, Eco)
+  - Express/Quick
+  - Delicates
+  - Wool
+  - Dark/Denim
+  - Shirts
+  - Mix
 - Calculate exact delay needed based on current time, program duration, and desired finish time
 - Accounts for Miele W1-specific delay constraints:
   - 30-minute increments for delays up to 10 hours
@@ -66,7 +74,7 @@ The test suite covers all core calculator functions including time parsing, form
 ## How It Works
 
 1. Enter the current time (or click "Use now" to auto-fill)
-2. Enter your washing program duration (e.g., 03:39 for 3 hours 39 minutes)
+2. Select a program preset (optional) or enter a custom duration (e.g., 03:39 for 3 hours 39 minutes)
 3. Enter when you want the wash to finish
 4. Click "Calculate delay"
 
@@ -86,9 +94,19 @@ Typical W1 behaviour (check your exact model manual):
 - Pure HTML/CSS/JavaScript with ES modules
 - Zero runtime dependencies
 - Built with Vite for fast development and optimized production builds
-- Tested with Vitest (13 unit tests)
+- Tested with Vitest (17 unit tests)
 - Hot module replacement in development mode
 - Works offline once loaded
+
+## Program Presets
+
+The preset durations are based on typical Miele W1 washing machine cycle times from standard models. Actual durations may vary depending on:
+- Your specific W1 model
+- Selected temperature
+- Soil level setting (light/normal/heavy)
+- Load size (machine sensors adjust cycle time based on load)
+
+If your machine shows a different duration on its display, use that value instead of the preset.
 
 ## License
 

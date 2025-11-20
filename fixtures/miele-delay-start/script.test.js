@@ -5,7 +5,8 @@ import {
   parseDuration,
   formatHM,
   formatDuration,
-  quantizeForW1Delay
+  quantizeForW1Delay,
+  W1_PROGRAM_PRESETS
 } from './script.js';
 
 describe('pad2', () => {
@@ -109,5 +110,37 @@ describe('quantizeForW1Delay', () => {
     expect(quantizeForW1Delay(1441)).toBe(1440);
     expect(quantizeForW1Delay(2000)).toBe(1440);
     expect(quantizeForW1Delay(10000)).toBe(1440);
+  });
+});
+
+describe('W1_PROGRAM_PRESETS', () => {
+  it('should be an array with at least one preset', () => {
+    expect(Array.isArray(W1_PROGRAM_PRESETS)).toBe(true);
+    expect(W1_PROGRAM_PRESETS.length).toBeGreaterThan(0);
+  });
+
+  it('should have presets with name and duration properties', () => {
+    W1_PROGRAM_PRESETS.forEach(preset => {
+      expect(preset).toHaveProperty('name');
+      expect(preset).toHaveProperty('duration');
+      expect(typeof preset.name).toBe('string');
+      expect(typeof preset.duration).toBe('string');
+      expect(preset.name.length).toBeGreaterThan(0);
+      expect(preset.duration.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('should have valid parseable durations', () => {
+    W1_PROGRAM_PRESETS.forEach(preset => {
+      const parsed = parseDuration(preset.duration);
+      expect(parsed).not.toBe(null);
+      expect(parsed).toBeGreaterThan(0);
+    });
+  });
+
+  it('should include common W1 programs', () => {
+    const presetNames = W1_PROGRAM_PRESETS.map(p => p.name.toLowerCase());
+    expect(presetNames.some(name => name.includes('cotton'))).toBe(true);
+    expect(presetNames.some(name => name.includes('express') || name.includes('quick'))).toBe(true);
   });
 });

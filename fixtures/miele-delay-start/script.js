@@ -68,6 +68,20 @@ export function quantizeForW1Delay(delayMinutes) {
   return snapped;
 }
 
+// Miele W1 program presets with typical durations
+// Based on standard W1 models - actual times may vary by model and load
+export const W1_PROGRAM_PRESETS = [
+  { name: "Cottons 60°C", duration: "2:29" },
+  { name: "Cottons 40°C", duration: "1:24" },
+  { name: "Cottons Eco", duration: "2:59" },
+  { name: "Express/Quick", duration: "0:49" },
+  { name: "Delicates", duration: "1:15" },
+  { name: "Wool", duration: "0:50" },
+  { name: "Dark/Denim", duration: "1:39" },
+  { name: "Shirts", duration: "1:20" },
+  { name: "Mix", duration: "1:30" },
+];
+
 function calculate() {
   const errorEl = document.getElementById("error");
   const resEl = document.getElementById("results");
@@ -143,15 +157,36 @@ function setNow() {
   document.getElementById("currentTime").value = t;
 }
 
+function applyPreset() {
+  const presetSelect = document.getElementById("programPreset");
+  const durationInput = document.getElementById("duration");
+
+  if (presetSelect.value) {
+    durationInput.value = presetSelect.value;
+  }
+}
+
 // Only run DOM code in browser environment (not in tests)
 if (typeof document !== 'undefined') {
   document.getElementById("calcBtn").addEventListener("click", calculate);
   document.getElementById("nowBtn").addEventListener("click", setNow);
 
-  // Prefill current time & a typical duration
+  // Prefill current time & populate program presets
   window.addEventListener("load", () => {
     setNow();
-    const durEl = document.getElementById("duration");
-    if (!durEl.value) durEl.value = "03:39"; // your example
+
+    // Populate program preset dropdown
+    const presetSelect = document.getElementById("programPreset");
+    if (presetSelect) {
+      W1_PROGRAM_PRESETS.forEach(preset => {
+        const option = document.createElement("option");
+        option.value = preset.duration;
+        option.textContent = `${preset.name} (${preset.duration})`;
+        presetSelect.appendChild(option);
+      });
+
+      // Add event listener for preset selection
+      presetSelect.addEventListener("change", applyPreset);
+    }
   });
 }
