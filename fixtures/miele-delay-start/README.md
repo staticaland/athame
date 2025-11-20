@@ -18,22 +18,33 @@ A standalone web calculator to help determine when to start your Miele W1 washin
 
 Just open `index.html` in your browser. No installation needed.
 
-### Development Server
+### Development
 
-If you want to run a local development server:
+Install dependencies and run the development server:
 
 ```bash
+npm install
 npm run dev
 ```
 
-This will start a server at http://localhost:8080 and open it in your browser.
+This will start Vite's dev server at http://localhost:5173 with hot module replacement.
 
-### Production Server
+### Building for Production
 
-To run without opening the browser:
+Build the app for production:
 
 ```bash
-npm start
+npm run build
+```
+
+The optimized files will be output to the `dist/` directory.
+
+### Preview Production Build
+
+Preview the production build locally:
+
+```bash
+npm run preview
 ```
 
 ## How It Works
@@ -56,9 +67,10 @@ Typical W1 behaviour (check your exact model manual):
 
 ## Technical Details
 
-- Pure HTML/CSS/JavaScript - no build step required
-- Zero dependencies for the app itself
-- Uses `http-server` for development convenience (optional)
+- Pure HTML/CSS/JavaScript with ES modules
+- Zero runtime dependencies
+- Built with Vite for fast development and optimized production builds
+- Hot module replacement in development mode
 - Works offline once loaded
 
 ## License

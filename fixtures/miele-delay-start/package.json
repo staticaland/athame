@@ -2,10 +2,11 @@
   "name": "miele-delay-start",
   "version": "1.0.0",
   "description": "Miele W1 washing machine delay start calculator",
-  "main": "index.html",
+  "type": "module",
   "scripts": {
-    "dev": "npx http-server -p 8080 -o",
-    "start": "npx http-server -p 8080"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "keywords": [
     "miele",
@@ -14,5 +15,8 @@
     "calculator"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
 }
