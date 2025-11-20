@@ -6,58 +6,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-  <h1>Miele W1 delay start helper</h1>
-  <div class="subtitle">Work out when to start so the wash finishes when you want.</div>
+<body class="bg-gray-50 text-gray-900 p-4 font-sans">
+  <h1 class="text-2xl font-semibold mb-1">Miele W1 delay start helper</h1>
+  <div class="text-sm text-gray-600 mb-4">Work out when to start so the wash finishes when you want.</div>
 
-  <div class="card">
-    <div class="pill">Inputs</div>
-    <div class="field">
-      <label for="currentTime">Current time</label>
-      <div class="row">
-        <div class="field">
-          <input id="currentTime" type="time" step="60" />
+  <div class="bg-white rounded-2xl p-3.5 shadow-lg mb-4 border border-gray-200">
+    <div class="inline-block px-2 py-0.5 rounded-full border border-gray-300 text-[0.7rem] uppercase tracking-wider mb-1.5 text-gray-600">Inputs</div>
+    <div class="mb-2.5">
+      <label for="currentTime" class="block text-[0.85rem] mb-1 text-gray-700">Current time</label>
+      <div class="flex gap-2.5">
+        <div class="flex-1">
+          <input id="currentTime" type="time" step="60" class="w-full px-2.5 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 text-[0.95rem] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
         </div>
-        <button type="button" class="secondary" id="nowBtn">Use now</button>
+        <button type="button" class="px-3 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-[0.95rem] font-medium hover:bg-gray-50 transition-colors" id="nowBtn">Use now</button>
       </div>
     </div>
 
-    <div class="field">
-      <label for="duration">Programme length (HH:MM, e.g. 03:39)</label>
-      <input id="duration" type="text" placeholder="03:39" />
+    <div class="mb-2.5">
+      <label for="duration" class="block text-[0.85rem] mb-1 text-gray-700">Programme length (HH:MM, e.g. 03:39)</label>
+      <input id="duration" type="text" placeholder="03:39" class="w-full px-2.5 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 text-[0.95rem] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
     </div>
 
-    <div class="field">
-      <label for="finishTime">Desired finish time (same or next day)</label>
-      <input id="finishTime" type="time" step="60" />
-      <div class="info">
+    <div class="mb-2.5">
+      <label for="finishTime" class="block text-[0.85rem] mb-1 text-gray-700">Desired finish time (same or next day)</label>
+      <input id="finishTime" type="time" step="60" class="w-full px-2.5 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 text-[0.95rem] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+      <div class="text-xs text-gray-600 mt-1">
         If finish time is earlier than current time, it's treated as <strong>tomorrow</strong>.
       </div>
     </div>
 
-    <button type="button" id="calcBtn">Calculate delay</button>
-    <div id="error" class="error"></div>
+    <button type="button" id="calcBtn" class="w-full px-3 py-2.5 rounded-full bg-blue-600 text-white text-[0.95rem] font-medium hover:bg-blue-700 transition-colors mt-1 mb-1.5">Calculate delay</button>
+    <div id="error" class="text-red-600 text-sm"></div>
   </div>
 
-  <div class="card">
-    <div class="pill">Result</div>
-    <div id="results" class="results">
-      <div class="info">Fill in the fields and tap "Calculate delay".</div>
+  <div class="bg-white rounded-2xl p-3.5 shadow-lg mb-4 border border-gray-200">
+    <div class="inline-block px-2 py-0.5 rounded-full border border-gray-300 text-[0.7rem] uppercase tracking-wider mb-1.5 text-gray-600">Result</div>
+    <div id="results" class="text-[0.95rem] leading-relaxed">
+      <div class="text-xs text-gray-600">Fill in the fields and tap "Calculate delay".</div>
     </div>
   </div>
 
-    <div class="card">
-      <div class="pill">Miele W1 delay rules</div>
-      <div class="info">
-        Typical W1 behaviour (check your exact model manual):
-        <ul>
-          <li>Delay start available from <strong>30 minutes</strong> up to <strong>24 hours</strong>.</li>
-          <li>Below about <strong>10 hours</strong>: steps of <strong>30 minutes</strong> (0:30, 1:00, 1:30, …).</li>
-          <li>From <strong>10–24 hours</strong>: steps of <strong>1 hour</strong> (10:00, 11:00, …, 24:00).</li>
-        </ul>
-        The tool shows both the exact math and the closest W1-friendly delay.
-      </div>
+  <div class="bg-white rounded-2xl p-3.5 shadow-lg mb-4 border border-gray-200">
+    <div class="inline-block px-2 py-0.5 rounded-full border border-gray-300 text-[0.7rem] uppercase tracking-wider mb-1.5 text-gray-600">Miele W1 delay rules</div>
+    <div class="text-xs text-gray-600">
+      Typical W1 behaviour (check your exact model manual):
+      <ul class="list-disc list-inside mt-1 space-y-0.5">
+        <li>Delay start available from <strong>30 minutes</strong> up to <strong>24 hours</strong>.</li>
+        <li>Below about <strong>10 hours</strong>: steps of <strong>30 minutes</strong> (0:30, 1:00, 1:30, …).</li>
+        <li>From <strong>10–24 hours</strong>: steps of <strong>1 hour</strong> (10:00, 11:00, …, 24:00).</li>
+      </ul>
+      The tool shows both the exact math and the closest W1-friendly delay.
     </div>
+  </div>
 
   <script type="module" src="script.js"></script>
 </body>

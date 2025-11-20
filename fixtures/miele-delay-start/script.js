@@ -117,19 +117,19 @@ function calculate() {
   const w1DelayText = formatDuration(delayW1);
 
   resEl.innerHTML = `
-    <div class="result-line">
-      <span class="result-label">Exact math:</span>
-      <span class="highlight">${exactDelayText}</span> delay
-      → start at <span class="highlight">${formatHM(startExact)}</span>
+    <div class="mb-1">
+      <span class="text-gray-600">Exact math:</span>
+      <span class="font-semibold text-blue-600">${exactDelayText}</span> delay
+      → start at <span class="font-semibold text-blue-600">${formatHM(startExact)}</span>
       → finish at ~${formatHM(startExact + durMin)}.
     </div>
-    <div class="result-line">
-      <span class="result-label">Closest W1 delay setting:</span>
-      <span class="highlight">${w1DelayText}</span>
-      → start at <span class="highlight">${formatHM(startW1)}</span>
+    <div class="mb-1">
+      <span class="text-gray-600">Closest W1 delay setting:</span>
+      <span class="font-semibold text-blue-600">${w1DelayText}</span>
+      → start at <span class="font-semibold text-blue-600">${formatHM(startW1)}</span>
       → finish at ~${formatHM(finishW1)}.
     </div>
-    <div class="info">
+    <div class="text-xs text-gray-600">
       (W1 typically uses 30-min steps up to 10 h, then 1-h steps up to 24 h.)
     </div>
   `;
