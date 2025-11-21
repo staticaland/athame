@@ -48,19 +48,23 @@ func (m *MieleCi) notify(ctx context.Context, message string, opts dagger.NtfySe
 
 // Build builds the Vite application and returns the dist directory
 func (m *MieleCi) Build() *dagger.Directory {
-	// Get the node base container
-	nodeBase := dag.Node(dagger.NodeOpts{
-		Src: m.Source,
-	}).Base()
-
-	// Install build dependencies and build the app
-	buildContainer := nodeBase.
-		WithExec([]string{"apk", "add", "--no-cache", "build-base", "python3", "pkgconfig"}).
+	// Use the same Node version as Dockerfile
+	buildContainer := dag.Container().
+		From("node:22.17.1-slim").
+		WithWorkdir("/app").
+		WithEnvVariable("NODE_ENV", "production").
+		// Install packages needed to build node modules
+		WithExec([]string{"sh", "-c", "apt-get update -qq && apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3"}).
+		// Copy package files first for better caching
+		WithFile("/app/package-lock.json", m.Source.File("package-lock.json")).
+		WithFile("/app/package.json", m.Source.File("package.json")).
 		WithExec([]string{"npm", "ci", "--include=dev"}).
+		// Copy application code after dependencies are installed
+		WithDirectory("/app", m.Source).
 		WithExec([]string{"npm", "run", "build"})
 
 	// Return the dist directory
-	return buildContainer.Directory("/src/dist")
+	return buildContainer.Directory("/app/dist")
 }
 
 // Publish builds the site and publishes it as a container image to GHCR
