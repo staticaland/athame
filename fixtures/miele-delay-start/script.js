@@ -365,10 +365,10 @@ if (typeof document !== 'undefined') {
     setSmartFinishTime();
     const durEl = document.getElementById("duration");
     if (!durEl.value) {
-      const defaultDur = parseDuration("1:26");
-      durEl.value = formatHM(defaultDur); // Bomull default in HH:MM format
+      const defaultDur = parseDuration("3:39");
+      durEl.value = formatHM(defaultDur); // ECO 40-60 default in HH:MM format
     }
-    programSelect.value = "1:26"; // Default to Bomull
+    programSelect.value = "3:39"; // Default to ECO 40-60
     displayRandomQuote(); // Show random quote
     displayRandomCheer(); // Show random cheer
     calculate(); // Initial calculation
