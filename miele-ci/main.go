@@ -46,6 +46,24 @@ func (m *MieleCi) notify(ctx context.Context, message string, opts dagger.NtfySe
 	}
 }
 
+// Test runs the test suite and returns the test output
+func (m *MieleCi) Test(ctx context.Context) (string, error) {
+	// Use Node module for base image (Alpine-based)
+	testContainer := dag.Node().Base().
+		WithWorkdir("/app").
+		// Copy package files first for better caching
+		WithFile("/app/package-lock.json", m.Source.File("package-lock.json")).
+		WithFile("/app/package.json", m.Source.File("package.json")).
+		WithExec([]string{"npm", "ci", "--include=dev"}).
+		// Copy application code after dependencies are installed
+		WithDirectory("/app", m.Source).
+		// Run tests
+		WithExec([]string{"npm", "test"})
+
+	// Return test output
+	return testContainer.Stdout(ctx)
+}
+
 // Build builds the Vite application and returns the dist directory
 func (m *MieleCi) Build() *dagger.Directory {
 	// Use Node module for base image (Alpine-based)
