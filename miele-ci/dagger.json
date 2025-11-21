@@ -1,0 +1,22 @@
+{
+  "name": "miele-ci",
+  "engineVersion": "v0.19.6",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "node",
+      "source": "../node"
+    },
+    {
+      "name": "flyio",
+      "source": "../flyio"
+    },
+    {
+      "name": "ntfy",
+      "source": "../ntfy"
+    }
+  ],
+  "disableDefaultFunctionCaching": true
+}
