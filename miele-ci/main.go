@@ -48,13 +48,10 @@ func (m *MieleCi) notify(ctx context.Context, message string, opts dagger.NtfySe
 
 // Build builds the Vite application and returns the dist directory
 func (m *MieleCi) Build() *dagger.Directory {
-	// Use the same Node version as Dockerfile
-	buildContainer := dag.Container().
-		From("node:22.17.1-slim").
+	// Use Node module for base image (Alpine-based)
+	buildContainer := dag.Node().Base().
 		WithWorkdir("/app").
 		WithEnvVariable("NODE_ENV", "production").
-		// Install packages needed to build node modules
-		WithExec([]string{"sh", "-c", "apt-get update -qq && apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3"}).
 		// Copy package files first for better caching
 		WithFile("/app/package-lock.json", m.Source.File("package-lock.json")).
 		WithFile("/app/package.json", m.Source.File("package.json")).
@@ -97,6 +94,30 @@ func (m *MieleCi) Publish(
 
 		platformVariants = append(platformVariants, ctr)
 	}
+
+	// Scan the first platform variant with Trivy before publishing
+	m.notify(ctx, "Scanning container for vulnerabilities...", dagger.NtfySendOpts{
+		Title:    "Trivy Security Scan Started",
+		Priority: "default",
+		Tags:     "shield",
+	})
+
+	scanResult, err := dag.Trivy().ScanContainer(ctx, platformVariants[0], "scan-target")
+	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Trivy Security Scan Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return "", fmt.Errorf("trivy scan failed: %w", err)
+	}
+	fmt.Printf("Trivy scan results:\n%s\n", scanResult)
+
+	m.notify(ctx, "Security scan completed successfully.", dagger.NtfySendOpts{
+		Title:    "Trivy Security Scan Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
 
 	// Publish to GHCR
 	imageAddr := fmt.Sprintf("ghcr.io/%s/athame/%s:%s", m.GhcrUsername, m.ImageName, m.Tag)
