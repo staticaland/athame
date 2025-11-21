@@ -77,6 +77,19 @@ func (m *MieleCi) Build() *dagger.Directory {
 	return buildContainer.Directory("/app/dist")
 }
 
+// TestAndBuild runs tests and builds the Vite application, returning the dist directory
+// Tests must pass before the build proceeds
+func (m *MieleCi) TestAndBuild(ctx context.Context) (*dagger.Directory, error) {
+	// Run tests first
+	_, err := m.Test(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("tests failed: %w", err)
+	}
+
+	// If tests pass, proceed with build
+	return m.Build(), nil
+}
+
 // BuildPublish builds the site and publishes it as a container image to GHCR
 func (m *MieleCi) BuildPublish(
 	ctx context.Context,
