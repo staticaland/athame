@@ -46,18 +46,21 @@ func (m *MieleCi) notify(ctx context.Context, message string, opts dagger.NtfySe
 	}
 }
 
-// Test runs the test suite and returns the test output
-func (m *MieleCi) Test(ctx context.Context) (string, error) {
-	// Use Node module for base image (Alpine-based)
-	testContainer := dag.Node().Base().
+// base returns a container with dependencies installed and source code mounted
+func (m *MieleCi) base() *dagger.Container {
+	return dag.Node().Base().
 		WithWorkdir("/app").
 		// Copy package files first for better caching
 		WithFile("/app/package-lock.json", m.Source.File("package-lock.json")).
 		WithFile("/app/package.json", m.Source.File("package.json")).
 		WithExec([]string{"npm", "ci", "--include=dev"}).
 		// Copy application code after dependencies are installed
-		WithDirectory("/app", m.Source).
-		// Run tests
+		WithDirectory("/app", m.Source)
+}
+
+// Test runs the test suite and returns the test output
+func (m *MieleCi) Test(ctx context.Context) (string, error) {
+	testContainer := m.base().
 		WithExec([]string{"npm", "test"})
 
 	// Return test output
@@ -66,16 +69,8 @@ func (m *MieleCi) Test(ctx context.Context) (string, error) {
 
 // Build builds the Vite application and returns the dist directory
 func (m *MieleCi) Build() *dagger.Directory {
-	// Use Node module for base image (Alpine-based)
-	buildContainer := dag.Node().Base().
-		WithWorkdir("/app").
+	buildContainer := m.base().
 		WithEnvVariable("NODE_ENV", "production").
-		// Copy package files first for better caching
-		WithFile("/app/package-lock.json", m.Source.File("package-lock.json")).
-		WithFile("/app/package.json", m.Source.File("package.json")).
-		WithExec([]string{"npm", "ci", "--include=dev"}).
-		// Copy application code after dependencies are installed
-		WithDirectory("/app", m.Source).
 		WithExec([]string{"npm", "run", "build"})
 
 	// Return the dist directory
