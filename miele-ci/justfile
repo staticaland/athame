@@ -2,7 +2,7 @@ export OP_ACCOUNT := "my.1password.com"
 
 # Deploy miele delay-start app to Fly.io
 deploy:
-    dagger call deploy \
+    dagger call build-publish-deploy \
       --ghcr-token='cmd:gh auth token | tr -d '\''\n'\''' \
       --flyio-app=miele-delay-start \
       --flyio-token='cmd:op read "op://Private/Fly.io API token for miele-delay-start/password" | tr -d '\''\n'\''' \

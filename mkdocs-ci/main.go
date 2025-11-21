@@ -52,8 +52,8 @@ func (m *MkdocsCi) notify(ctx context.Context, message string, opts dagger.NtfyS
 	}
 }
 
-// RunAllTests runs vale, prettier, markdownlint, and link checking concurrently
-func (m *MkdocsCi) RunAllTests(
+// Test runs vale, prettier, markdownlint, and link checking concurrently
+func (m *MkdocsCi) Test(
 	ctx context.Context,
 ) error {
 	siteDir := m.Source.Directory(m.SitePath)
@@ -236,8 +236,8 @@ func (m *MkdocsCi) Build() *dagger.Directory {
 	})
 }
 
-// Publish builds the site and publishes it as a container image to GHCR
-func (m *MkdocsCi) Publish(
+// BuildPublish builds the site and publishes it as a container image to GHCR
+func (m *MkdocsCi) BuildPublish(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -281,8 +281,8 @@ func (m *MkdocsCi) Publish(
 	return addr, nil
 }
 
-// LintBuildPublish runs all tests concurrently, then builds and publishes if tests pass
-func (m *MkdocsCi) LintBuildPublish(
+// TestBuildPublishDeploy runs all tests concurrently, then builds and publishes if tests pass
+func (m *MkdocsCi) TestBuildPublishDeploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -321,7 +321,7 @@ func (m *MkdocsCi) LintBuildPublish(
 	})
 
 	// Run all tests concurrently
-	err := m.RunAllTests(ctx)
+	err := m.Test(ctx)
 	if err != nil {
 		// Send failure notification
 		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
@@ -340,7 +340,7 @@ func (m *MkdocsCi) LintBuildPublish(
 	})
 
 	// Build and publish
-	addr, err := m.Publish(ctx, ghcrToken)
+	addr, err := m.BuildPublish(ctx, ghcrToken)
 	if err != nil {
 		// Send deployment failure notification
 		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{

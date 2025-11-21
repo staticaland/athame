@@ -64,8 +64,8 @@ func (m *MieleCi) Build() *dagger.Directory {
 	return buildContainer.Directory("/app/dist")
 }
 
-// Publish builds the site and publishes it as a container image to GHCR
-func (m *MieleCi) Publish(
+// BuildPublish builds the site and publishes it as a container image to GHCR
+func (m *MieleCi) BuildPublish(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -133,8 +133,8 @@ func (m *MieleCi) Publish(
 	return addr, nil
 }
 
-// Deploy builds, publishes, and deploys the application to Fly.io
-func (m *MieleCi) Deploy(
+// BuildPublishDeploy builds, publishes, and deploys the application to Fly.io
+func (m *MieleCi) BuildPublishDeploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -154,7 +154,7 @@ func (m *MieleCi) Deploy(
 	})
 
 	// Build and publish
-	addr, err := m.Publish(ctx, ghcrToken)
+	addr, err := m.BuildPublish(ctx, ghcrToken)
 	if err != nil {
 		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
 			Title:    "Image Publishing Failed",

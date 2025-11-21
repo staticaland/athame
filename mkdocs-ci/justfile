@@ -1,6 +1,6 @@
 # Deploy mkdocs-material to multiple platforms
 deploy:
-    dagger call --mod ./mkdocs-ci lint-build-publish \
+    dagger call test-build-publish-deploy \
       --ghcr-token='cmd:gh auth token | tr -d '\''\n'\''' \
       --deploy-hook-url='cmd:op read "op://Private/Render Deploy Hook/credential" | tr -d '\''\n'\''' \
       --flyio-app=mkdocs-material \
