@@ -59,8 +59,9 @@ func (m *MieleCi) base() *dagger.Container {
 }
 
 // Verify runs all local validation steps: build, test, and scan
+// Returns multi-platform container images ready for publishing
 // This phase requires no credentials and can run locally
-func (m *MieleCi) Verify(ctx context.Context) (*dagger.Directory, error) {
+func (m *MieleCi) Verify(ctx context.Context) ([]*dagger.Container, error) {
 	m.notify(ctx, "Running verification steps...", dagger.NtfySendOpts{
 		Title:    "Verify: Started",
 		Priority: "default",
@@ -91,21 +92,41 @@ func (m *MieleCi) Verify(ctx context.Context) (*dagger.Directory, error) {
 	}
 	fmt.Printf("Test output:\n%s\n", testOutput)
 
-	// Step 3: Scan - Build container and scan it
+	// Step 3: Build multi-platform containers
+	m.notify(ctx, "Building container images...", dagger.NtfySendOpts{
+		Title:    "Verify: Container Build",
+		Priority: "default",
+		Tags:     "package",
+	})
+
+	platforms := []dagger.Platform{
+		"linux/amd64",
+		"linux/arm64",
+	}
+
+	platformVariants := make([]*dagger.Container, 0, len(platforms))
+	for _, platform := range platforms {
+		ctr := dag.Container(dagger.ContainerOpts{Platform: platform}).
+			// renovate: datasource=docker depName=nginx
+			From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
+			WithDirectory("/usr/share/nginx/html", builtSite).
+			WithExposedPort(80).
+			WithLabel("org.opencontainers.image.title", m.ImageName).
+			WithLabel("org.opencontainers.image.version", m.Tag).
+			WithLabel("org.opencontainers.image.created", time.Now().String()).
+			WithLabel("org.opencontainers.image.source", "https://github.com/staticaland/athame")
+
+		platformVariants = append(platformVariants, ctr)
+	}
+
+	// Step 4: Scan the first platform variant (amd64)
 	m.notify(ctx, "Scanning container for vulnerabilities...", dagger.NtfySendOpts{
 		Title:    "Verify: Scan",
 		Priority: "default",
 		Tags:     "shield",
 	})
 
-	// Build a container for scanning (just linux/amd64 for faster verification)
-	scanContainer := dag.Container(dagger.ContainerOpts{Platform: "linux/amd64"}).
-		// renovate: datasource=docker depName=nginx
-		From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
-		WithDirectory("/usr/share/nginx/html", builtSite).
-		WithExposedPort(80)
-
-	scanResult, err := dag.Trivy().ScanContainer(ctx, scanContainer, "scan-target")
+	scanResult, err := dag.Trivy().ScanContainer(ctx, platformVariants[0], "scan-target")
 	if err != nil {
 		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
 			Title:    "Verify: Scan Failed",
@@ -122,8 +143,8 @@ func (m *MieleCi) Verify(ctx context.Context) (*dagger.Directory, error) {
 		Tags:     "white_check_mark",
 	})
 
-	// Return the built site directory (not the container)
-	return builtSite, nil
+	// Return the built and scanned containers
+	return platformVariants, nil
 }
 
 // Build builds the Vite application and returns the dist directory
@@ -136,49 +157,26 @@ func (m *MieleCi) Build() *dagger.Directory {
 	return buildContainer.Directory("/app/dist")
 }
 
-// Publish runs Verify, then builds multi-platform containers and publishes them to GHCR
+// Publish runs Verify, then publishes the verified containers to GHCR
 // This phase requires GHCR token for authentication
 func (m *MieleCi) Publish(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
-	// Phase 1: Verify (build + test + scan)
-	builtSite, err := m.Verify(ctx)
+	// Phase 1: Verify (build + test + scan) - returns built containers
+	platformVariants, err := m.Verify(ctx)
 	if err != nil {
 		return "", fmt.Errorf("verify phase failed: %w", err)
 	}
 
-	// Phase 2: Publish to GHCR
+	// Phase 2: Publish the verified containers to GHCR
 	m.notify(ctx, "Publishing to GHCR...", dagger.NtfySendOpts{
 		Title:    "Publish: Started",
 		Priority: "default",
 		Tags:     "package",
 	})
 
-	// Platforms to build for
-	platforms := []dagger.Platform{
-		"linux/amd64",
-		"linux/arm64",
-	}
-
-	// Create platform-specific variants
-	platformVariants := make([]*dagger.Container, 0, len(platforms))
-	for _, platform := range platforms {
-		ctr := dag.Container(dagger.ContainerOpts{Platform: platform}).
-			// renovate: datasource=docker depName=nginx
-			From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
-			WithDirectory("/usr/share/nginx/html", builtSite).
-			WithExposedPort(80).
-			WithLabel("org.opencontainers.image.title", m.ImageName).
-			WithLabel("org.opencontainers.image.version", m.Tag).
-			WithLabel("org.opencontainers.image.created", time.Now().String()).
-			WithLabel("org.opencontainers.image.source", "https://github.com/staticaland/athame")
-
-		platformVariants = append(platformVariants, ctr)
-	}
-
-	// Publish to GHCR
 	imageAddr := fmt.Sprintf("ghcr.io/%s/athame/%s:%s", m.GhcrUsername, m.ImageName, m.Tag)
 	addr, err := dag.Container().
 		WithRegistryAuth("ghcr.io", m.GhcrUsername, ghcrToken).
