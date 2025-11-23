@@ -52,13 +52,20 @@ func (m *MkdocsCi) notify(ctx context.Context, message string, opts dagger.NtfyS
 	}
 }
 
-// Test runs vale, prettier, markdownlint, and link checking concurrently
-func (m *MkdocsCi) Test(
+// Verify runs all local validation steps: lint, build, test, and scan
+// This phase requires no credentials and can run locally
+func (m *MkdocsCi) Verify(
 	ctx context.Context,
-) error {
+) (*dagger.Directory, error) {
 	siteDir := m.Source.Directory(m.SitePath)
 
-	// Create error group
+	// Step 1: Lint - Run vale, prettier, markdownlint, and link checking concurrently
+	m.notify(ctx, "Running linters...", dagger.NtfySendOpts{
+		Title:    "Verify: Lint",
+		Priority: "default",
+		Tags:     "mag",
+	})
+
 	eg, gctx := errgroup.WithContext(ctx)
 
 	// Run vale
@@ -97,9 +104,26 @@ func (m *MkdocsCi) Test(
 		return err
 	})
 
-	// Wait for all tests to complete
-	// If any test fails, the error will be returned
-	return eg.Wait()
+	if err := eg.Wait(); err != nil {
+		return nil, fmt.Errorf("lint failed: %w", err)
+	}
+
+	// Step 2: Build
+	m.notify(ctx, "Building site...", dagger.NtfySendOpts{
+		Title:    "Verify: Build",
+		Priority: "default",
+		Tags:     "hammer_and_wrench",
+	})
+
+	builtSite := m.Build()
+
+	m.notify(ctx, "Verification completed successfully.", dagger.NtfySendOpts{
+		Title:    "Verify: Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
+
+	return builtSite, nil
 }
 
 // deployToAllPlatforms deploys to Render, Fly.io, and Google Cloud Run concurrently based on provided credentials
@@ -236,14 +260,20 @@ func (m *MkdocsCi) Build() *dagger.Directory {
 	})
 }
 
-// BuildPublish builds the site and publishes it as a container image to GHCR
-func (m *MkdocsCi) BuildPublish(
+// Publish builds a container image from the site and publishes it to GHCR
+// This phase requires GHCR token for authentication
+func (m *MkdocsCi) Publish(
 	ctx context.Context,
+	// The built site directory to package into a container
+	builtSite *dagger.Directory,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
-	// Build the site once
-	builtSite := m.Build()
+	m.notify(ctx, "Publishing to GHCR...", dagger.NtfySendOpts{
+		Title:    "Publish: Started",
+		Priority: "default",
+		Tags:     "package",
+	})
 
 	// Platforms to build for: linux/amd64 (required for Render) and linux/arm64 (for Apple Silicon)
 	platforms := []dagger.Platform{
@@ -275,14 +305,101 @@ func (m *MkdocsCi) BuildPublish(
 			PlatformVariants: platformVariants,
 		})
 	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Publish: Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
 		return "", fmt.Errorf("failed to publish to GHCR: %w", err)
 	}
+
+	m.notify(ctx,
+		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```\n\n**Run:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
+		dagger.NtfySendOpts{
+			Title:    "Publish: Completed",
+			Priority: "default",
+			Tags:     "white_check_mark",
+			Markdown: true,
+		})
 
 	return addr, nil
 }
 
-// TestBuildPublishDeploy runs all tests concurrently, then builds and publishes if tests pass
-func (m *MkdocsCi) TestBuildPublishDeploy(
+// Deploy deploys the published container image to cloud platforms
+// This phase requires cloud provider credentials
+func (m *MkdocsCi) Deploy(
+	ctx context.Context,
+	// The published image address (e.g., ghcr.io/user/image:tag@sha256:...)
+	imageAddr string,
+	// +optional
+	deployHookURL *dagger.Secret,
+	// +optional
+	flyioApp string,
+	// +optional
+	flyioToken *dagger.Secret,
+	// +optional
+	flyioRegion string,
+	// +optional
+	gcloudService string,
+	// +optional
+	gcloudProject string,
+	// +optional
+	gcloudRegion string,
+	// +optional
+	gcloudServiceAccountKey *dagger.Secret,
+	// +optional
+	gcloudAllowUnauthenticated bool,
+	// +optional
+	// +default="ghcr"
+	// Artifact Registry repository name
+	artifactRegistryRepo string,
+	// +optional
+	// +default="europe-north2"
+	// Artifact Registry region (can be different from Cloud Run region)
+	artifactRegistryRegion string,
+) error {
+	m.notify(ctx, "Deploying to cloud platforms...", dagger.NtfySendOpts{
+		Title:    "Deploy: Started",
+		Priority: "default",
+		Tags:     "rocket",
+	})
+
+	err := m.deployToAllPlatforms(
+		ctx,
+		imageAddr,
+		deployHookURL,
+		flyioApp,
+		flyioToken,
+		flyioRegion,
+		gcloudService,
+		gcloudProject,
+		gcloudRegion,
+		gcloudServiceAccountKey,
+		gcloudAllowUnauthenticated,
+		artifactRegistryRepo,
+		artifactRegistryRegion,
+	)
+
+	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Deploy: Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return err
+	}
+
+	m.notify(ctx, "All deployments completed successfully.", dagger.NtfySendOpts{
+		Title:    "Deploy: Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
+
+	return nil
+}
+
+// VerifyPublishDeploy runs all phases: Verify (lint/build), Publish (GHCR), and Deploy (cloud platforms)
+func (m *MkdocsCi) VerifyPublishDeploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -313,56 +430,26 @@ func (m *MkdocsCi) TestBuildPublishDeploy(
 	// Artifact Registry region (can be different from Cloud Run region)
 	artifactRegistryRegion string,
 ) (string, error) {
-	// Send notification that deployment is starting
-	m.notify(ctx, "Starting tests...", dagger.NtfySendOpts{
+	m.notify(ctx, "Starting CI/CD pipeline...", dagger.NtfySendOpts{
 		Title:    "MkDocs CI/CD Started",
 		Priority: "default",
 		Tags:     "hourglass_flowing_sand",
 	})
 
-	// Run all tests concurrently
-	err := m.Test(ctx)
+	// Phase 1: Verify (no credentials needed)
+	builtSite, err := m.Verify(ctx)
 	if err != nil {
-		// Send failure notification
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Tests Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return "", fmt.Errorf("tests failed: %w", err)
+		return "", fmt.Errorf("verify phase failed: %w", err)
 	}
 
-	// Send notification that tests passed
-	m.notify(ctx, "Tests passed. Building site...", dagger.NtfySendOpts{
-		Title:    "Tests Completed",
-		Priority: "default",
-		Tags:     "white_check_mark",
-	})
-
-	// Build and publish
-	addr, err := m.BuildPublish(ctx, ghcrToken)
+	// Phase 2: Publish (requires GHCR token)
+	addr, err := m.Publish(ctx, builtSite, ghcrToken)
 	if err != nil {
-		// Send deployment failure notification
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Image Publishing Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return "", err
+		return "", fmt.Errorf("publish phase failed: %w", err)
 	}
 
-	// Send notification that deployment is complete
-	m.notify(ctx,
-		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```\n\n**Run:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
-		dagger.NtfySendOpts{
-			Title:    "Image Publishing Completed",
-			Priority: "default",
-			Tags:     "white_check_mark",
-			Markdown: true,
-		})
-
-	// Deploy to all platforms
-	if err := m.deployToAllPlatforms(
+	// Phase 3: Deploy (requires cloud credentials)
+	if err := m.Deploy(
 		ctx,
 		addr,
 		deployHookURL,
@@ -377,7 +464,7 @@ func (m *MkdocsCi) TestBuildPublishDeploy(
 		artifactRegistryRepo,
 		artifactRegistryRegion,
 	); err != nil {
-		return addr, err
+		return addr, fmt.Errorf("deploy phase failed: %w", err)
 	}
 
 	return addr, nil

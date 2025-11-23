@@ -58,13 +58,71 @@ func (m *MieleCi) base() *dagger.Container {
 		WithDirectory("/app", m.Source)
 }
 
-// Test runs the test suite and returns the test output
-func (m *MieleCi) Test(ctx context.Context) (string, error) {
-	testContainer := m.base().
-		WithExec([]string{"npm", "test"})
+// Verify runs all local validation steps: lint, build, test, and scan
+// This phase requires no credentials and can run locally
+func (m *MieleCi) Verify(ctx context.Context) (*dagger.Container, error) {
+	m.notify(ctx, "Running verification steps...", dagger.NtfySendOpts{
+		Title:    "Verify: Started",
+		Priority: "default",
+		Tags:     "mag",
+	})
 
-	// Return test output
-	return testContainer.Stdout(ctx)
+	// Step 1: Build
+	m.notify(ctx, "Building application...", dagger.NtfySendOpts{
+		Title:    "Verify: Build",
+		Priority: "default",
+		Tags:     "hammer_and_wrench",
+	})
+
+	builtSite := m.Build()
+
+	// Step 2: Test
+	m.notify(ctx, "Running tests...", dagger.NtfySendOpts{
+		Title:    "Verify: Test",
+		Priority: "default",
+		Tags:     "test_tube",
+	})
+
+	testOutput, err := m.base().
+		WithExec([]string{"npm", "test"}).
+		Stdout(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("tests failed: %w", err)
+	}
+	fmt.Printf("Test output:\n%s\n", testOutput)
+
+	// Step 3: Scan - Build container and scan it
+	m.notify(ctx, "Scanning container for vulnerabilities...", dagger.NtfySendOpts{
+		Title:    "Verify: Scan",
+		Priority: "default",
+		Tags:     "shield",
+	})
+
+	// Build a container for scanning (just linux/amd64 for faster verification)
+	scanContainer := dag.Container(dagger.ContainerOpts{Platform: "linux/amd64"}).
+		// renovate: datasource=docker depName=nginx
+		From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
+		WithDirectory("/usr/share/nginx/html", builtSite).
+		WithExposedPort(80)
+
+	scanResult, err := dag.Trivy().ScanContainer(ctx, scanContainer, "scan-target")
+	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Verify: Scan Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return nil, fmt.Errorf("trivy scan failed: %w", err)
+	}
+	fmt.Printf("Trivy scan results:\n%s\n", scanResult)
+
+	m.notify(ctx, "Verification completed successfully.", dagger.NtfySendOpts{
+		Title:    "Verify: Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
+
+	return scanContainer, nil
 }
 
 // Build builds the Vite application and returns the dist directory
@@ -77,14 +135,20 @@ func (m *MieleCi) Build() *dagger.Directory {
 	return buildContainer.Directory("/app/dist")
 }
 
-// BuildPublish builds the site and publishes it as a container image to GHCR
-func (m *MieleCi) BuildPublish(
+// Publish builds multi-platform containers and publishes them to GHCR
+// This phase requires GHCR token for authentication
+func (m *MieleCi) Publish(
 	ctx context.Context,
+	// The built application directory to package into a container
+	builtSite *dagger.Directory,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
-	// Build the site once
-	builtSite := m.Build()
+	m.notify(ctx, "Publishing to GHCR...", dagger.NtfySendOpts{
+		Title:    "Publish: Started",
+		Priority: "default",
+		Tags:     "package",
+	})
 
 	// Platforms to build for
 	platforms := []dagger.Platform{
@@ -108,30 +172,6 @@ func (m *MieleCi) BuildPublish(
 		platformVariants = append(platformVariants, ctr)
 	}
 
-	// Scan the first platform variant with Trivy before publishing
-	m.notify(ctx, "Scanning container for vulnerabilities...", dagger.NtfySendOpts{
-		Title:    "Trivy Security Scan Started",
-		Priority: "default",
-		Tags:     "shield",
-	})
-
-	scanResult, err := dag.Trivy().ScanContainer(ctx, platformVariants[0], "scan-target")
-	if err != nil {
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Trivy Security Scan Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return "", fmt.Errorf("trivy scan failed: %w", err)
-	}
-	fmt.Printf("Trivy scan results:\n%s\n", scanResult)
-
-	m.notify(ctx, "Security scan completed successfully.", dagger.NtfySendOpts{
-		Title:    "Trivy Security Scan Completed",
-		Priority: "default",
-		Tags:     "white_check_mark",
-	})
-
 	// Publish to GHCR
 	imageAddr := fmt.Sprintf("ghcr.io/%s/athame/%s:%s", m.GhcrUsername, m.ImageName, m.Tag)
 	addr, err := dag.Container().
@@ -140,14 +180,75 @@ func (m *MieleCi) BuildPublish(
 			PlatformVariants: platformVariants,
 		})
 	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Publish: Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
 		return "", fmt.Errorf("failed to publish to GHCR: %w", err)
 	}
+
+	m.notify(ctx,
+		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```", addr),
+		dagger.NtfySendOpts{
+			Title:    "Publish: Completed",
+			Priority: "default",
+			Tags:     "white_check_mark",
+			Markdown: true,
+		})
 
 	return addr, nil
 }
 
-// BuildPublishDeploy builds, publishes, and deploys the application to Fly.io
-func (m *MieleCi) BuildPublishDeploy(
+// Deploy deploys the published container image to Fly.io
+// This phase requires Fly.io credentials
+func (m *MieleCi) Deploy(
+	ctx context.Context,
+	// The published image address (e.g., ghcr.io/user/image:tag@sha256:...)
+	imageAddr string,
+	// Fly.io app name
+	flyioApp string,
+	// Fly.io API token
+	flyioToken *dagger.Secret,
+	// +optional
+	// +default="arn"
+	flyioRegion string,
+) error {
+	m.notify(ctx, "Deploying to Fly.io...", dagger.NtfySendOpts{
+		Title:    "Deploy: Started",
+		Priority: "default",
+		Tags:     "rocket",
+	})
+
+	_, err := dag.Flyio().Deploy(ctx, flyioApp, imageAddr, flyioToken, dagger.FlyioDeployOpts{
+		PrimaryRegion: flyioRegion,
+		InternalPort:  80,
+	})
+	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Deploy: Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return fmt.Errorf("fly.io deploy failed: %w", err)
+	}
+
+	flyioUrl := fmt.Sprintf("https://%s.fly.dev", flyioApp)
+	m.notify(ctx,
+		fmt.Sprintf("Deployed to Fly.io.\n\n**App:** %s", flyioApp),
+		dagger.NtfySendOpts{
+			Title:    "Deploy: Completed",
+			Priority: "default",
+			Tags:     "white_check_mark",
+			Actions:  fmt.Sprintf("view, View Site, %s", flyioUrl),
+			Markdown: true,
+		})
+
+	return nil
+}
+
+// VerifyPublishDeploy runs all phases: Verify (lint/build/test/scan), Publish (GHCR), and Deploy (Fly.io)
+func (m *MieleCi) VerifyPublishDeploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -159,59 +260,32 @@ func (m *MieleCi) BuildPublishDeploy(
 	// +default="arn"
 	flyioRegion string,
 ) (string, error) {
-	// Send notification that deployment is starting
-	m.notify(ctx, "Starting build...", dagger.NtfySendOpts{
+	m.notify(ctx, "Starting CI/CD pipeline...", dagger.NtfySendOpts{
 		Title:    "Miele CI/CD Started",
 		Priority: "default",
 		Tags:     "hourglass_flowing_sand",
 	})
 
-	// Build and publish
-	addr, err := m.BuildPublish(ctx, ghcrToken)
+	// Phase 1: Verify (no credentials needed)
+	// We need to get the built site from Verify, not the scanned container
+	_, err := m.Verify(ctx)
 	if err != nil {
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Image Publishing Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return "", err
+		return "", fmt.Errorf("verify phase failed: %w", err)
 	}
 
-	// Send notification that image is published
-	m.notify(ctx,
-		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```", addr),
-		dagger.NtfySendOpts{
-			Title:    "Image Publishing Completed",
-			Priority: "default",
-			Tags:     "white_check_mark",
-			Markdown: true,
-		})
+	// Build fresh for publishing (Verify already validated it)
+	builtSite := m.Build()
 
-	// Deploy to Fly.io
-	_, err = dag.Flyio().Deploy(ctx, flyioApp, addr, flyioToken, dagger.FlyioDeployOpts{
-		PrimaryRegion: flyioRegion,
-		InternalPort:  80,
-	})
+	// Phase 2: Publish (requires GHCR token)
+	addr, err := m.Publish(ctx, builtSite, ghcrToken)
 	if err != nil {
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Fly.io Deploy Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return "", fmt.Errorf("fly.io deploy failed: %w", err)
+		return "", fmt.Errorf("publish phase failed: %w", err)
 	}
 
-	// Send success notification
-	flyioUrl := fmt.Sprintf("https://%s.fly.dev", flyioApp)
-	m.notify(ctx,
-		fmt.Sprintf("Deployed to Fly.io.\n\n**App:** %s", flyioApp),
-		dagger.NtfySendOpts{
-			Title:    "Fly.io Deploy Completed",
-			Priority: "default",
-			Tags:     "white_check_mark",
-			Actions:  fmt.Sprintf("view, View Site, %s", flyioUrl),
-			Markdown: true,
-		})
+	// Phase 3: Deploy (requires Fly.io credentials)
+	if err := m.Deploy(ctx, addr, flyioApp, flyioToken, flyioRegion); err != nil {
+		return addr, fmt.Errorf("deploy phase failed: %w", err)
+	}
 
 	return addr, nil
 }
