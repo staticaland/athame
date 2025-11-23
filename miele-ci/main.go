@@ -85,7 +85,7 @@ func (m *MieleCi) VerifyArtifact(ctx context.Context) ([]*dagger.Container, erro
 	})
 
 	testOutput, err := m.base().
-		WithExec([]string{"npm", "test"}).
+		WithExec([]string{"npm", "test", "--", "--run"}).
 		Stdout(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("tests failed: %w", err)

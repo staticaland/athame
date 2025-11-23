@@ -5,7 +5,7 @@ import {
   parseDuration,
   formatHM,
   formatDuration,
-  quantizeForW1Delay
+  quantizeDelay
 } from './script.js';
 
 describe('pad2', () => {
@@ -80,34 +80,34 @@ describe('formatDuration', () => {
   });
 });
 
-describe('quantizeForW1Delay', () => {
+describe('quantizeDelay', () => {
   it('should enforce minimum delay of 30 minutes', () => {
-    expect(quantizeForW1Delay(0)).toBe(30);
-    expect(quantizeForW1Delay(15)).toBe(30);
-    expect(quantizeForW1Delay(29)).toBe(30);
+    expect(quantizeDelay(0)).toBe(30);
+    expect(quantizeDelay(15)).toBe(30);
+    expect(quantizeDelay(29)).toBe(30);
   });
 
   it('should use 30-minute steps below 10 hours', () => {
-    expect(quantizeForW1Delay(30)).toBe(30);
-    expect(quantizeForW1Delay(44)).toBe(30); // rounds down
-    expect(quantizeForW1Delay(45)).toBe(60); // rounds up (1.5 rounds to 2)
-    expect(quantizeForW1Delay(60)).toBe(60);
-    expect(quantizeForW1Delay(90)).toBe(90);
-    expect(quantizeForW1Delay(120)).toBe(120);
-    expect(quantizeForW1Delay(570)).toBe(570); // 9.5 hours
+    expect(quantizeDelay(30)).toBe(30);
+    expect(quantizeDelay(44)).toBe(30); // rounds down
+    expect(quantizeDelay(45)).toBe(60); // rounds up (1.5 rounds to 2)
+    expect(quantizeDelay(60)).toBe(60);
+    expect(quantizeDelay(90)).toBe(90);
+    expect(quantizeDelay(120)).toBe(120);
+    expect(quantizeDelay(570)).toBe(570); // 9.5 hours
   });
 
   it('should use 1-hour steps from 10 to 24 hours', () => {
-    expect(quantizeForW1Delay(600)).toBe(600); // 10 hours
-    expect(quantizeForW1Delay(630)).toBe(660); // 10.5h rounds to 11h
-    expect(quantizeForW1Delay(660)).toBe(660); // 11 hours
-    expect(quantizeForW1Delay(720)).toBe(720); // 12 hours
-    expect(quantizeForW1Delay(1440)).toBe(1440); // 24 hours
+    expect(quantizeDelay(600)).toBe(600); // 10 hours
+    expect(quantizeDelay(630)).toBe(660); // 10.5h rounds to 11h
+    expect(quantizeDelay(660)).toBe(660); // 11 hours
+    expect(quantizeDelay(720)).toBe(720); // 12 hours
+    expect(quantizeDelay(1440)).toBe(1440); // 24 hours
   });
 
   it('should enforce maximum delay of 24 hours', () => {
-    expect(quantizeForW1Delay(1441)).toBe(1440);
-    expect(quantizeForW1Delay(2000)).toBe(1440);
-    expect(quantizeForW1Delay(10000)).toBe(1440);
+    expect(quantizeDelay(1441)).toBe(1440);
+    expect(quantizeDelay(2000)).toBe(1440);
+    expect(quantizeDelay(10000)).toBe(1440);
   });
 });

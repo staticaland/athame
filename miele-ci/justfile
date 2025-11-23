@@ -1,5 +1,8 @@
 export OP_ACCOUNT := "my.1password.com"
 
+verify-artifact:
+    dagger call verify-artifact
+
 # Deploy miele delay-start app to Fly.io
 deploy:
     dagger call build-publish-deploy \
