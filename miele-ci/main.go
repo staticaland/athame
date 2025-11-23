@@ -200,9 +200,9 @@ func (m *MieleCi) Publish(
 	return addr, nil
 }
 
-// Deploy deploys the published container image to Fly.io
+// DeployToCloud deploys the published container image to Fly.io
 // This phase requires Fly.io credentials
-func (m *MieleCi) Deploy(
+func (m *MieleCi) DeployToCloud(
 	ctx context.Context,
 	// The published image address (e.g., ghcr.io/user/image:tag@sha256:...)
 	imageAddr string,
@@ -247,8 +247,8 @@ func (m *MieleCi) Deploy(
 	return nil
 }
 
-// VerifyPublishDeploy runs all phases: Verify (lint/build/test/scan), Publish (GHCR), and Deploy (Fly.io)
-func (m *MieleCi) VerifyPublishDeploy(
+// Deploy runs all phases: Verify (lint/build/test/scan), Publish (GHCR), and DeployToCloud (Fly.io)
+func (m *MieleCi) Deploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -282,8 +282,8 @@ func (m *MieleCi) VerifyPublishDeploy(
 		return "", fmt.Errorf("publish phase failed: %w", err)
 	}
 
-	// Phase 3: Deploy (requires Fly.io credentials)
-	if err := m.Deploy(ctx, addr, flyioApp, flyioToken, flyioRegion); err != nil {
+	// Phase 3: DeployToCloud (requires Fly.io credentials)
+	if err := m.DeployToCloud(ctx, addr, flyioApp, flyioToken, flyioRegion); err != nil {
 		return addr, fmt.Errorf("deploy phase failed: %w", err)
 	}
 

@@ -325,9 +325,9 @@ func (m *MkdocsCi) Publish(
 	return addr, nil
 }
 
-// Deploy deploys the published container image to cloud platforms
+// DeployToCloud deploys the published container image to cloud platforms
 // This phase requires cloud provider credentials
-func (m *MkdocsCi) Deploy(
+func (m *MkdocsCi) DeployToCloud(
 	ctx context.Context,
 	// The published image address (e.g., ghcr.io/user/image:tag@sha256:...)
 	imageAddr string,
@@ -398,8 +398,8 @@ func (m *MkdocsCi) Deploy(
 	return nil
 }
 
-// VerifyPublishDeploy runs all phases: Verify (lint/build), Publish (GHCR), and Deploy (cloud platforms)
-func (m *MkdocsCi) VerifyPublishDeploy(
+// Deploy runs all phases: Verify (lint/build), Publish (GHCR), and DeployToCloud (cloud platforms)
+func (m *MkdocsCi) Deploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -448,8 +448,8 @@ func (m *MkdocsCi) VerifyPublishDeploy(
 		return "", fmt.Errorf("publish phase failed: %w", err)
 	}
 
-	// Phase 3: Deploy (requires cloud credentials)
-	if err := m.Deploy(
+	// Phase 3: DeployToCloud (requires cloud credentials)
+	if err := m.DeployToCloud(
 		ctx,
 		addr,
 		deployHookURL,
