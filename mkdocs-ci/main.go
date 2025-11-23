@@ -52,13 +52,21 @@ func (m *MkdocsCi) notify(ctx context.Context, message string, opts dagger.NtfyS
 	}
 }
 
-// Test runs vale, prettier, markdownlint, and link checking concurrently
-func (m *MkdocsCi) Test(
+// VerifyArtifact runs all local validation steps: lint, build, and scan
+// Returns multi-platform container images ready for publishing
+// This phase requires no credentials and can run locally
+func (m *MkdocsCi) VerifyArtifact(
 	ctx context.Context,
-) error {
+) ([]*dagger.Container, error) {
 	siteDir := m.Source.Directory(m.SitePath)
 
-	// Create error group
+	// Step 1: Lint - Run vale, prettier, markdownlint, and link checking concurrently
+	m.notify(ctx, "Running linters...", dagger.NtfySendOpts{
+		Title:    "Verify: Lint",
+		Priority: "default",
+		Tags:     "mag",
+	})
+
 	eg, gctx := errgroup.WithContext(ctx)
 
 	// Run vale
@@ -97,9 +105,72 @@ func (m *MkdocsCi) Test(
 		return err
 	})
 
-	// Wait for all tests to complete
-	// If any test fails, the error will be returned
-	return eg.Wait()
+	if err := eg.Wait(); err != nil {
+		return nil, fmt.Errorf("lint failed: %w", err)
+	}
+
+	// Step 2: Build
+	m.notify(ctx, "Building site...", dagger.NtfySendOpts{
+		Title:    "Verify: Build",
+		Priority: "default",
+		Tags:     "hammer_and_wrench",
+	})
+
+	builtSite := m.Build()
+
+	// Step 3: Build multi-platform containers
+	m.notify(ctx, "Building container images...", dagger.NtfySendOpts{
+		Title:    "Verify: Container Build",
+		Priority: "default",
+		Tags:     "package",
+	})
+
+	platforms := []dagger.Platform{
+		"linux/amd64", // Required for Render and most cloud providers
+		"linux/arm64", // For Apple Silicon Macs and ARM servers
+	}
+
+	platformVariants := make([]*dagger.Container, 0, len(platforms))
+	for _, platform := range platforms {
+		ctr := dag.Container(dagger.ContainerOpts{Platform: platform}).
+			// renovate: datasource=docker depName=nginx
+			From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
+			WithDirectory("/usr/share/nginx/html", builtSite).
+			WithExposedPort(80).
+			WithLabel("org.opencontainers.image.title", m.ImageName).
+			WithLabel("org.opencontainers.image.version", m.Tag).
+			WithLabel("org.opencontainers.image.created", time.Now().String()).
+			WithLabel("org.opencontainers.image.source", "https://github.com/staticaland/athame")
+
+		platformVariants = append(platformVariants, ctr)
+	}
+
+	// Step 4: Scan the first platform variant (amd64)
+	m.notify(ctx, "Scanning container for vulnerabilities...", dagger.NtfySendOpts{
+		Title:    "Verify: Scan",
+		Priority: "default",
+		Tags:     "shield",
+	})
+
+	scanResult, err := dag.Trivy().ScanContainer(ctx, platformVariants[0], "scan-target")
+	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Verify: Scan Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return nil, fmt.Errorf("trivy scan failed: %w", err)
+	}
+	fmt.Printf("Trivy scan results:\n%s\n", scanResult)
+
+	m.notify(ctx, "Verification completed successfully.", dagger.NtfySendOpts{
+		Title:    "Verify: Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
+
+	// Return the built and scanned containers
+	return platformVariants, nil
 }
 
 // deployToAllPlatforms deploys to Render, Fly.io, and Google Cloud Run concurrently based on provided credentials
@@ -236,38 +307,26 @@ func (m *MkdocsCi) Build() *dagger.Directory {
 	})
 }
 
-// BuildPublish builds the site and publishes it as a container image to GHCR
-func (m *MkdocsCi) BuildPublish(
+// Publish runs VerifyArtifact, then publishes the verified containers to GHCR
+// This phase requires GHCR token for authentication
+func (m *MkdocsCi) Publish(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
-	// Build the site once
-	builtSite := m.Build()
-
-	// Platforms to build for: linux/amd64 (required for Render) and linux/arm64 (for Apple Silicon)
-	platforms := []dagger.Platform{
-		"linux/amd64", // Required for Render and most cloud providers
-		"linux/arm64", // For Apple Silicon Macs and ARM servers
+	// Phase 1: VerifyArtifact (lint + build + scan) - returns built containers
+	platformVariants, err := m.VerifyArtifact(ctx)
+	if err != nil {
+		return "", fmt.Errorf("verify artifact phase failed: %w", err)
 	}
 
-	// Create platform-specific variants
-	platformVariants := make([]*dagger.Container, 0, len(platforms))
-	for _, platform := range platforms {
-		ctr := dag.Container(dagger.ContainerOpts{Platform: platform}).
-			// renovate: datasource=docker depName=nginx
-			From("nginx:1.27.5-alpine3.21@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10").
-			WithDirectory("/usr/share/nginx/html", builtSite).
-			WithExposedPort(80).
-			WithLabel("org.opencontainers.image.title", m.ImageName).
-			WithLabel("org.opencontainers.image.version", m.Tag).
-			WithLabel("org.opencontainers.image.created", time.Now().String()).
-			WithLabel("org.opencontainers.image.source", "https://github.com/staticaland/athame")
+	// Phase 2: Publish the verified containers to GHCR
+	m.notify(ctx, "Publishing to GHCR...", dagger.NtfySendOpts{
+		Title:    "Publish: Started",
+		Priority: "default",
+		Tags:     "package",
+	})
 
-		platformVariants = append(platformVariants, ctr)
-	}
-
-	// Publish to GHCR
 	imageAddr := fmt.Sprintf("ghcr.io/%s/athame/%s:%s", m.GhcrUsername, m.ImageName, m.Tag)
 	addr, err := dag.Container().
 		WithRegistryAuth("ghcr.io", m.GhcrUsername, ghcrToken).
@@ -275,14 +334,29 @@ func (m *MkdocsCi) BuildPublish(
 			PlatformVariants: platformVariants,
 		})
 	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Publish: Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
 		return "", fmt.Errorf("failed to publish to GHCR: %w", err)
 	}
+
+	m.notify(ctx,
+		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```\n\n**Run:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
+		dagger.NtfySendOpts{
+			Title:    "Publish: Completed",
+			Priority: "default",
+			Tags:     "white_check_mark",
+			Markdown: true,
+		})
 
 	return addr, nil
 }
 
-// TestBuildPublishDeploy runs all tests concurrently, then builds and publishes if tests pass
-func (m *MkdocsCi) TestBuildPublishDeploy(
+// Deploy runs Publish, then deploys the container image to cloud platforms
+// This phase requires GHCR token and cloud provider credentials
+func (m *MkdocsCi) Deploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
@@ -313,56 +387,26 @@ func (m *MkdocsCi) TestBuildPublishDeploy(
 	// Artifact Registry region (can be different from Cloud Run region)
 	artifactRegistryRegion string,
 ) (string, error) {
-	// Send notification that deployment is starting
-	m.notify(ctx, "Starting tests...", dagger.NtfySendOpts{
+	m.notify(ctx, "Starting CI/CD pipeline...", dagger.NtfySendOpts{
 		Title:    "MkDocs CI/CD Started",
 		Priority: "default",
 		Tags:     "hourglass_flowing_sand",
 	})
 
-	// Run all tests concurrently
-	err := m.Test(ctx)
+	// Phase 1+2: Publish (which calls VerifyArtifact)
+	addr, err := m.Publish(ctx, ghcrToken)
 	if err != nil {
-		// Send failure notification
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Tests Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return "", fmt.Errorf("tests failed: %w", err)
+		return "", fmt.Errorf("publish phase failed: %w", err)
 	}
 
-	// Send notification that tests passed
-	m.notify(ctx, "Tests passed. Building site...", dagger.NtfySendOpts{
-		Title:    "Tests Completed",
+	// Phase 3: Deploy to cloud platforms
+	m.notify(ctx, "Deploying to cloud platforms...", dagger.NtfySendOpts{
+		Title:    "Deploy: Started",
 		Priority: "default",
-		Tags:     "white_check_mark",
+		Tags:     "rocket",
 	})
 
-	// Build and publish
-	addr, err := m.BuildPublish(ctx, ghcrToken)
-	if err != nil {
-		// Send deployment failure notification
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Image Publishing Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return "", err
-	}
-
-	// Send notification that deployment is complete
-	m.notify(ctx,
-		fmt.Sprintf("Published to GHCR.\n\n**Image:**\n```\n%s\n```\n\n**Run:**\n```bash\ndocker run -p 8080:80 %s\n```", addr, addr),
-		dagger.NtfySendOpts{
-			Title:    "Image Publishing Completed",
-			Priority: "default",
-			Tags:     "white_check_mark",
-			Markdown: true,
-		})
-
-	// Deploy to all platforms
-	if err := m.deployToAllPlatforms(
+	err = m.deployToAllPlatforms(
 		ctx,
 		addr,
 		deployHookURL,
@@ -376,9 +420,22 @@ func (m *MkdocsCi) TestBuildPublishDeploy(
 		gcloudAllowUnauthenticated,
 		artifactRegistryRepo,
 		artifactRegistryRegion,
-	); err != nil {
-		return addr, err
+	)
+
+	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Deploy: Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return addr, fmt.Errorf("deploy to cloud failed: %w", err)
 	}
+
+	m.notify(ctx, "All deployments completed successfully.", dagger.NtfySendOpts{
+		Title:    "Deploy: Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
 
 	return addr, nil
 }
