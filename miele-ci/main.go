@@ -58,9 +58,9 @@ func (m *MieleCi) base() *dagger.Container {
 		WithDirectory("/app", m.Source)
 }
 
-// Verify runs all local validation steps: lint, build, test, and scan
+// Verify runs all local validation steps: build, test, and scan
 // This phase requires no credentials and can run locally
-func (m *MieleCi) Verify(ctx context.Context) (*dagger.Container, error) {
+func (m *MieleCi) Verify(ctx context.Context) (*dagger.Directory, error) {
 	m.notify(ctx, "Running verification steps...", dagger.NtfySendOpts{
 		Title:    "Verify: Started",
 		Priority: "default",
@@ -122,7 +122,8 @@ func (m *MieleCi) Verify(ctx context.Context) (*dagger.Container, error) {
 		Tags:     "white_check_mark",
 	})
 
-	return scanContainer, nil
+	// Return the built site directory (not the container)
+	return builtSite, nil
 }
 
 // Build builds the Vite application and returns the dist directory
@@ -135,15 +136,20 @@ func (m *MieleCi) Build() *dagger.Directory {
 	return buildContainer.Directory("/app/dist")
 }
 
-// Publish builds multi-platform containers and publishes them to GHCR
+// Publish runs Verify, then builds multi-platform containers and publishes them to GHCR
 // This phase requires GHCR token for authentication
 func (m *MieleCi) Publish(
 	ctx context.Context,
-	// The built application directory to package into a container
-	builtSite *dagger.Directory,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
+	// Phase 1: Verify (build + test + scan)
+	builtSite, err := m.Verify(ctx)
+	if err != nil {
+		return "", fmt.Errorf("verify phase failed: %w", err)
+	}
+
+	// Phase 2: Publish to GHCR
 	m.notify(ctx, "Publishing to GHCR...", dagger.NtfySendOpts{
 		Title:    "Publish: Started",
 		Priority: "default",
@@ -200,54 +206,8 @@ func (m *MieleCi) Publish(
 	return addr, nil
 }
 
-// DeployToCloud deploys the published container image to Fly.io
-// This phase requires Fly.io credentials
-func (m *MieleCi) DeployToCloud(
-	ctx context.Context,
-	// The published image address (e.g., ghcr.io/user/image:tag@sha256:...)
-	imageAddr string,
-	// Fly.io app name
-	flyioApp string,
-	// Fly.io API token
-	flyioToken *dagger.Secret,
-	// +optional
-	// +default="arn"
-	flyioRegion string,
-) error {
-	m.notify(ctx, "Deploying to Fly.io...", dagger.NtfySendOpts{
-		Title:    "Deploy: Started",
-		Priority: "default",
-		Tags:     "rocket",
-	})
-
-	_, err := dag.Flyio().Deploy(ctx, flyioApp, imageAddr, flyioToken, dagger.FlyioDeployOpts{
-		PrimaryRegion: flyioRegion,
-		InternalPort:  80,
-	})
-	if err != nil {
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Deploy: Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return fmt.Errorf("fly.io deploy failed: %w", err)
-	}
-
-	flyioUrl := fmt.Sprintf("https://%s.fly.dev", flyioApp)
-	m.notify(ctx,
-		fmt.Sprintf("Deployed to Fly.io.\n\n**App:** %s", flyioApp),
-		dagger.NtfySendOpts{
-			Title:    "Deploy: Completed",
-			Priority: "default",
-			Tags:     "white_check_mark",
-			Actions:  fmt.Sprintf("view, View Site, %s", flyioUrl),
-			Markdown: true,
-		})
-
-	return nil
-}
-
-// Deploy runs all phases: Verify (lint/build/test/scan), Publish (GHCR), and DeployToCloud (Fly.io)
+// Deploy runs Publish, then deploys the container image to Fly.io
+// This phase requires GHCR token and Fly.io credentials
 func (m *MieleCi) Deploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
@@ -266,26 +226,42 @@ func (m *MieleCi) Deploy(
 		Tags:     "hourglass_flowing_sand",
 	})
 
-	// Phase 1: Verify (no credentials needed)
-	// We need to get the built site from Verify, not the scanned container
-	_, err := m.Verify(ctx)
-	if err != nil {
-		return "", fmt.Errorf("verify phase failed: %w", err)
-	}
-
-	// Build fresh for publishing (Verify already validated it)
-	builtSite := m.Build()
-
-	// Phase 2: Publish (requires GHCR token)
-	addr, err := m.Publish(ctx, builtSite, ghcrToken)
+	// Phase 1+2: Publish (which calls Verify)
+	addr, err := m.Publish(ctx, ghcrToken)
 	if err != nil {
 		return "", fmt.Errorf("publish phase failed: %w", err)
 	}
 
-	// Phase 3: DeployToCloud (requires Fly.io credentials)
-	if err := m.DeployToCloud(ctx, addr, flyioApp, flyioToken, flyioRegion); err != nil {
-		return addr, fmt.Errorf("deploy phase failed: %w", err)
+	// Phase 3: Deploy to Fly.io
+	m.notify(ctx, "Deploying to Fly.io...", dagger.NtfySendOpts{
+		Title:    "Deploy: Started",
+		Priority: "default",
+		Tags:     "rocket",
+	})
+
+	_, err = dag.Flyio().Deploy(ctx, flyioApp, addr, flyioToken, dagger.FlyioDeployOpts{
+		PrimaryRegion: flyioRegion,
+		InternalPort:  80,
+	})
+	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Deploy: Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return addr, fmt.Errorf("fly.io deploy failed: %w", err)
 	}
+
+	flyioUrl := fmt.Sprintf("https://%s.fly.dev", flyioApp)
+	m.notify(ctx,
+		fmt.Sprintf("Deployed to Fly.io.\n\n**App:** %s", flyioApp),
+		dagger.NtfySendOpts{
+			Title:    "Deploy: Completed",
+			Priority: "default",
+			Tags:     "white_check_mark",
+			Actions:  fmt.Sprintf("view, View Site, %s", flyioUrl),
+			Markdown: true,
+		})
 
 	return addr, nil
 }

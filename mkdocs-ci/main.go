@@ -260,15 +260,20 @@ func (m *MkdocsCi) Build() *dagger.Directory {
 	})
 }
 
-// Publish builds a container image from the site and publishes it to GHCR
+// Publish runs Verify, then builds a container image and publishes it to GHCR
 // This phase requires GHCR token for authentication
 func (m *MkdocsCi) Publish(
 	ctx context.Context,
-	// The built site directory to package into a container
-	builtSite *dagger.Directory,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
+	// Phase 1: Verify (lint + build)
+	builtSite, err := m.Verify(ctx)
+	if err != nil {
+		return "", fmt.Errorf("verify phase failed: %w", err)
+	}
+
+	// Phase 2: Publish to GHCR
 	m.notify(ctx, "Publishing to GHCR...", dagger.NtfySendOpts{
 		Title:    "Publish: Started",
 		Priority: "default",
@@ -325,80 +330,8 @@ func (m *MkdocsCi) Publish(
 	return addr, nil
 }
 
-// DeployToCloud deploys the published container image to cloud platforms
-// This phase requires cloud provider credentials
-func (m *MkdocsCi) DeployToCloud(
-	ctx context.Context,
-	// The published image address (e.g., ghcr.io/user/image:tag@sha256:...)
-	imageAddr string,
-	// +optional
-	deployHookURL *dagger.Secret,
-	// +optional
-	flyioApp string,
-	// +optional
-	flyioToken *dagger.Secret,
-	// +optional
-	flyioRegion string,
-	// +optional
-	gcloudService string,
-	// +optional
-	gcloudProject string,
-	// +optional
-	gcloudRegion string,
-	// +optional
-	gcloudServiceAccountKey *dagger.Secret,
-	// +optional
-	gcloudAllowUnauthenticated bool,
-	// +optional
-	// +default="ghcr"
-	// Artifact Registry repository name
-	artifactRegistryRepo string,
-	// +optional
-	// +default="europe-north2"
-	// Artifact Registry region (can be different from Cloud Run region)
-	artifactRegistryRegion string,
-) error {
-	m.notify(ctx, "Deploying to cloud platforms...", dagger.NtfySendOpts{
-		Title:    "Deploy: Started",
-		Priority: "default",
-		Tags:     "rocket",
-	})
-
-	err := m.deployToAllPlatforms(
-		ctx,
-		imageAddr,
-		deployHookURL,
-		flyioApp,
-		flyioToken,
-		flyioRegion,
-		gcloudService,
-		gcloudProject,
-		gcloudRegion,
-		gcloudServiceAccountKey,
-		gcloudAllowUnauthenticated,
-		artifactRegistryRepo,
-		artifactRegistryRegion,
-	)
-
-	if err != nil {
-		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
-			Title:    "Deploy: Failed",
-			Priority: "high",
-			Tags:     "warning",
-		})
-		return err
-	}
-
-	m.notify(ctx, "All deployments completed successfully.", dagger.NtfySendOpts{
-		Title:    "Deploy: Completed",
-		Priority: "default",
-		Tags:     "white_check_mark",
-	})
-
-	return nil
-}
-
-// Deploy runs all phases: Verify (lint/build), Publish (GHCR), and DeployToCloud (cloud platforms)
+// Deploy runs Publish, then deploys the container image to cloud platforms
+// This phase requires GHCR token and cloud provider credentials
 func (m *MkdocsCi) Deploy(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
@@ -436,20 +369,20 @@ func (m *MkdocsCi) Deploy(
 		Tags:     "hourglass_flowing_sand",
 	})
 
-	// Phase 1: Verify (no credentials needed)
-	builtSite, err := m.Verify(ctx)
-	if err != nil {
-		return "", fmt.Errorf("verify phase failed: %w", err)
-	}
-
-	// Phase 2: Publish (requires GHCR token)
-	addr, err := m.Publish(ctx, builtSite, ghcrToken)
+	// Phase 1+2: Publish (which calls Verify)
+	addr, err := m.Publish(ctx, ghcrToken)
 	if err != nil {
 		return "", fmt.Errorf("publish phase failed: %w", err)
 	}
 
-	// Phase 3: DeployToCloud (requires cloud credentials)
-	if err := m.DeployToCloud(
+	// Phase 3: Deploy to cloud platforms
+	m.notify(ctx, "Deploying to cloud platforms...", dagger.NtfySendOpts{
+		Title:    "Deploy: Started",
+		Priority: "default",
+		Tags:     "rocket",
+	})
+
+	err = m.deployToAllPlatforms(
 		ctx,
 		addr,
 		deployHookURL,
@@ -463,9 +396,22 @@ func (m *MkdocsCi) Deploy(
 		gcloudAllowUnauthenticated,
 		artifactRegistryRepo,
 		artifactRegistryRegion,
-	); err != nil {
-		return addr, fmt.Errorf("deploy phase failed: %w", err)
+	)
+
+	if err != nil {
+		m.notify(ctx, "Check logs for details.", dagger.NtfySendOpts{
+			Title:    "Deploy: Failed",
+			Priority: "high",
+			Tags:     "warning",
+		})
+		return addr, fmt.Errorf("deploy to cloud failed: %w", err)
 	}
+
+	m.notify(ctx, "All deployments completed successfully.", dagger.NtfySendOpts{
+		Title:    "Deploy: Completed",
+		Priority: "default",
+		Tags:     "white_check_mark",
+	})
 
 	return addr, nil
 }
