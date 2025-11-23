@@ -52,10 +52,10 @@ func (m *MkdocsCi) notify(ctx context.Context, message string, opts dagger.NtfyS
 	}
 }
 
-// Verify runs all local validation steps: lint, build, and scan
+// VerifyArtifact runs all local validation steps: lint, build, and scan
 // Returns multi-platform container images ready for publishing
 // This phase requires no credentials and can run locally
-func (m *MkdocsCi) Verify(
+func (m *MkdocsCi) VerifyArtifact(
 	ctx context.Context,
 ) ([]*dagger.Container, error) {
 	siteDir := m.Source.Directory(m.SitePath)
@@ -307,17 +307,17 @@ func (m *MkdocsCi) Build() *dagger.Directory {
 	})
 }
 
-// Publish runs Verify, then publishes the verified containers to GHCR
+// Publish runs VerifyArtifact, then publishes the verified containers to GHCR
 // This phase requires GHCR token for authentication
 func (m *MkdocsCi) Publish(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
-	// Phase 1: Verify (lint + build + scan) - returns built containers
-	platformVariants, err := m.Verify(ctx)
+	// Phase 1: VerifyArtifact (lint + build + scan) - returns built containers
+	platformVariants, err := m.VerifyArtifact(ctx)
 	if err != nil {
-		return "", fmt.Errorf("verify phase failed: %w", err)
+		return "", fmt.Errorf("verify artifact phase failed: %w", err)
 	}
 
 	// Phase 2: Publish the verified containers to GHCR
@@ -393,7 +393,7 @@ func (m *MkdocsCi) Deploy(
 		Tags:     "hourglass_flowing_sand",
 	})
 
-	// Phase 1+2: Publish (which calls Verify)
+	// Phase 1+2: Publish (which calls VerifyArtifact)
 	addr, err := m.Publish(ctx, ghcrToken)
 	if err != nil {
 		return "", fmt.Errorf("publish phase failed: %w", err)

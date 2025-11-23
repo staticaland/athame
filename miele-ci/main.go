@@ -58,10 +58,10 @@ func (m *MieleCi) base() *dagger.Container {
 		WithDirectory("/app", m.Source)
 }
 
-// Verify runs all local validation steps: build, test, and scan
+// VerifyArtifact runs all local validation steps: build, test, and scan
 // Returns multi-platform container images ready for publishing
 // This phase requires no credentials and can run locally
-func (m *MieleCi) Verify(ctx context.Context) ([]*dagger.Container, error) {
+func (m *MieleCi) VerifyArtifact(ctx context.Context) ([]*dagger.Container, error) {
 	m.notify(ctx, "Running verification steps...", dagger.NtfySendOpts{
 		Title:    "Verify: Started",
 		Priority: "default",
@@ -157,17 +157,17 @@ func (m *MieleCi) Build() *dagger.Directory {
 	return buildContainer.Directory("/app/dist")
 }
 
-// Publish runs Verify, then publishes the verified containers to GHCR
+// Publish runs VerifyArtifact, then publishes the verified containers to GHCR
 // This phase requires GHCR token for authentication
 func (m *MieleCi) Publish(
 	ctx context.Context,
 	// GitHub token for GHCR authentication (get with: gh auth token)
 	ghcrToken *dagger.Secret,
 ) (string, error) {
-	// Phase 1: Verify (build + test + scan) - returns built containers
-	platformVariants, err := m.Verify(ctx)
+	// Phase 1: VerifyArtifact (build + test + scan) - returns built containers
+	platformVariants, err := m.VerifyArtifact(ctx)
 	if err != nil {
-		return "", fmt.Errorf("verify phase failed: %w", err)
+		return "", fmt.Errorf("verify artifact phase failed: %w", err)
 	}
 
 	// Phase 2: Publish the verified containers to GHCR
@@ -224,7 +224,7 @@ func (m *MieleCi) Deploy(
 		Tags:     "hourglass_flowing_sand",
 	})
 
-	// Phase 1+2: Publish (which calls Verify)
+	// Phase 1+2: Publish (which calls VerifyArtifact)
 	addr, err := m.Publish(ctx, ghcrToken)
 	if err != nil {
 		return "", fmt.Errorf("publish phase failed: %w", err)
