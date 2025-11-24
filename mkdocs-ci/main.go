@@ -60,14 +60,16 @@ func (m *MkdocsCi) VerifyArtifact(
 ) ([]*dagger.Container, error) {
 	siteDir := m.Source.Directory(m.SitePath)
 
-	// Step 1: Lint - Run vale, prettier, markdownlint, and link checking concurrently
-	m.notify(ctx, "Running linters...", dagger.NtfySendOpts{
-		Title:    "Verify: Lint",
+	// Step 1: Lint and Build in parallel
+	m.notify(ctx, "Linting and building...", dagger.NtfySendOpts{
+		Title:    "Verify: Lint & Build",
 		Priority: "default",
-		Tags:     "mag",
+		Tags:     "mag,hammer_and_wrench",
 	})
 
 	eg, gctx := errgroup.WithContext(ctx)
+
+	var builtSite *dagger.Directory
 
 	// Run vale
 	eg.Go(func() error {
@@ -105,20 +107,17 @@ func (m *MkdocsCi) VerifyArtifact(
 		return err
 	})
 
-	if err := eg.Wait(); err != nil {
-		return nil, fmt.Errorf("lint failed: %w", err)
-	}
-
-	// Step 2: Build
-	m.notify(ctx, "Building site...", dagger.NtfySendOpts{
-		Title:    "Verify: Build",
-		Priority: "default",
-		Tags:     "hammer_and_wrench",
+	// Run build
+	eg.Go(func() error {
+		builtSite = m.Build()
+		return nil
 	})
 
-	builtSite := m.Build()
+	if err := eg.Wait(); err != nil {
+		return nil, fmt.Errorf("lint/build failed: %w", err)
+	}
 
-	// Step 3: Build multi-platform containers
+	// Step 2: Build multi-platform containers
 	m.notify(ctx, "Building container images...", dagger.NtfySendOpts{
 		Title:    "Verify: Container Build",
 		Priority: "default",
@@ -145,7 +144,7 @@ func (m *MkdocsCi) VerifyArtifact(
 		platformVariants = append(platformVariants, ctr)
 	}
 
-	// Step 4: Scan the first platform variant (amd64)
+	// Step 3: Scan the first platform variant (amd64)
 	m.notify(ctx, "Scanning container for vulnerabilities...", dagger.NtfySendOpts{
 		Title:    "Verify: Scan",
 		Priority: "default",

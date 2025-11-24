@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"dagger/miele-ci/internal/dagger"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func New(
@@ -68,31 +70,43 @@ func (m *MieleCi) VerifyArtifact(ctx context.Context) ([]*dagger.Container, erro
 		Tags:     "mag",
 	})
 
-	// Step 1: Build
-	m.notify(ctx, "Building application...", dagger.NtfySendOpts{
-		Title:    "Verify: Build",
+	// Step 1: Build and Test in parallel
+	m.notify(ctx, "Building and testing...", dagger.NtfySendOpts{
+		Title:    "Verify: Build & Test",
 		Priority: "default",
-		Tags:     "hammer_and_wrench",
+		Tags:     "hammer_and_wrench,test_tube",
 	})
 
-	builtSite := m.Build()
+	eg, gctx := errgroup.WithContext(ctx)
 
-	// Step 2: Test
-	m.notify(ctx, "Running tests...", dagger.NtfySendOpts{
-		Title:    "Verify: Test",
-		Priority: "default",
-		Tags:     "test_tube",
+	var builtSite *dagger.Directory
+	var testOutput string
+
+	// Run build
+	eg.Go(func() error {
+		builtSite = m.Build()
+		return nil
 	})
 
-	testOutput, err := m.base().
-		WithExec([]string{"npm", "test", "--", "--run"}).
-		Stdout(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("tests failed: %w", err)
+	// Run tests
+	eg.Go(func() error {
+		output, err := m.base().
+			WithExec([]string{"npm", "test", "--", "--run"}).
+			Stdout(gctx)
+		if err != nil {
+			return fmt.Errorf("tests failed: %w", err)
+		}
+		testOutput = output
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
 	}
+
 	fmt.Printf("Test output:\n%s\n", testOutput)
 
-	// Step 3: Build multi-platform containers
+	// Step 2: Build multi-platform containers
 	m.notify(ctx, "Building container images...", dagger.NtfySendOpts{
 		Title:    "Verify: Container Build",
 		Priority: "default",
@@ -119,7 +133,7 @@ func (m *MieleCi) VerifyArtifact(ctx context.Context) ([]*dagger.Container, erro
 		platformVariants = append(platformVariants, ctr)
 	}
 
-	// Step 4: Scan the first platform variant (amd64)
+	// Step 3: Scan the first platform variant (amd64)
 	m.notify(ctx, "Scanning container for vulnerabilities...", dagger.NtfySendOpts{
 		Title:    "Verify: Scan",
 		Priority: "default",
