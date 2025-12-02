@@ -14,10 +14,14 @@ curl -fsSL https://dl.dagger.io/dagger/install.sh | BIN_DIR=$HOME/.local/bin sh
 apt-get update -qq 2>&1 | grep -v "^W:" || true
 apt-get install -y podman > /dev/null 2>&1
 
-# Start Podman socket service
-mkdir -p /run/user/0/podman
-podman system service --time=0 unix:///run/user/0/podman/podman.sock &
+# Configure Podman for rootful execution (required by Dagger)
+# Start rootful Podman socket service
+mkdir -p /run/podman
+podman system service --time=0 unix:///run/podman/podman.sock &
 
-# Export DOCKER_HOST for Dagger to use Podman
-export DOCKER_HOST=unix:///run/user/0/podman/podman.sock
-echo "export DOCKER_HOST=unix:///run/user/0/podman/podman.sock" >> "$HOME/.bashrc"
+# Wait for socket to be ready
+sleep 2
+
+# Export DOCKER_HOST for Dagger to use Podman (rootful socket)
+export DOCKER_HOST=unix:///run/podman/podman.sock
+echo "export DOCKER_HOST=unix:///run/podman/podman.sock" >> "$HOME/.bashrc"
