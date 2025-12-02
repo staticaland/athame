@@ -25,3 +25,6 @@ sleep 2
 # Export DOCKER_HOST for Dagger to use Podman (rootful socket)
 export DOCKER_HOST=unix:///run/podman/podman.sock
 echo "export DOCKER_HOST=unix:///run/podman/podman.sock" >> "$HOME/.bashrc"
+
+# Verify Dagger can communicate with Podman
+dagger core version
