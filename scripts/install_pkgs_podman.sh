@@ -10,11 +10,8 @@ fi
 mkdir -p "$HOME/.local/bin"
 curl -fsSL https://dl.dagger.io/dagger/install.sh | BIN_DIR=$HOME/.local/bin sh
 
-# Install Podman with dependency handling
+# Install Podman
 apt-get update -qq 2>&1 | grep -v "^W:" || true
-
-# Install crun (alternative to runc) first to satisfy dependencies
-apt-get install -y crun > /dev/null 2>&1 || true
 
 # Install podman with --fix-missing to handle repository issues
 apt-get install -y podman --fix-missing > /dev/null 2>&1 || true
